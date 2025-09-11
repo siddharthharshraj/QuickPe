@@ -39,7 +39,7 @@ export const Signin = () => {
 
         try {
             console.log('🔐 Attempting signin with:', { username, baseURL: axios.defaults.baseURL });
-            const response = await axios.post("/api/v1/user/signin", {
+            const response = await axios.post("/v1/user/signin", {
                 username,
                 password
             });
@@ -66,7 +66,7 @@ export const Signin = () => {
         setTimeout(async () => {
             setLoading(true);
             try {
-                const response = await axios.post("/api/v1/user/signin", {
+                const response = await axios.post("/v1/user/signin", {
                     username: "siddharth.harsh@example.com",
                     password: "password123"
                 });
