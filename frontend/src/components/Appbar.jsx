@@ -23,7 +23,7 @@ export const Appbar = () => {
                 // Fetch initial notifications
                 const fetchNotifications = async () => {
                     try {
-                        const response = await axios.get('http://localhost:3001/api/v1/notifications', {
+                        const response = await axios.get('/api/v1/notifications', {
                             headers: {
                                 'Authorization': `Bearer ${token}`
                             }
@@ -41,7 +41,7 @@ export const Appbar = () => {
                 fetchNotifications();
                 
                 // Set up socket connection for real-time updates
-                const socket = io('http://localhost:3001', {
+                const socket = io('/', {
                     auth: {
                         token: token
                     }
@@ -107,7 +107,7 @@ export const Appbar = () => {
         try {
             const token = localStorage.getItem("token");
             
-            await axios.put('http://localhost:3001/api/v1/notifications/read-all', {}, {
+            await axios.put('/api/v1/notifications/read-all', {}, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

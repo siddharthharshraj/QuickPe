@@ -26,7 +26,7 @@ const About = () => {
         setSubmitStatus('');
 
         try {
-            const response = await fetch('http://localhost:3001/api/v1/contact', {
+            const response = await fetch('/api/v1/contact', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

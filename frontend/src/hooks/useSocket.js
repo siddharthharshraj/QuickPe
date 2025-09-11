@@ -8,7 +8,7 @@ export const useSocket = (userId, onNotification) => {
         if (!userId) return;
 
         // Initialize socket connection
-        const socket = io('http://localhost:3001');
+        const socket = io('/');
         socketRef.current = socket;
 
         // Join user room

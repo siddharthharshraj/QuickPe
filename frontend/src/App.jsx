@@ -18,7 +18,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Set the base URL for all axios requests
 axios.defaults.baseURL = process.env.NODE_ENV === 'production' 
-  ? 'https://quickpe.siddharth-dev.tech/api' 
+  ? '/api' 
   : 'http://localhost:3001';
 
 function App() {
