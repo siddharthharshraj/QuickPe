@@ -21,35 +21,10 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <!-- Debugging enabled - remove security restrictions temporarily -->
     <script>
-      // Disable right-click context menu
-      document.addEventListener('contextmenu', function(e) {
-        e.preventDefault();
-        return false;
-      });
-      
-      // Disable F12, Ctrl+Shift+I, Ctrl+U, Ctrl+S
-      document.addEventListener('keydown', function(e) {
-        if (e.key === 'F12' || 
-            (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-            (e.ctrlKey && e.key === 'u') ||
-            (e.ctrlKey && e.key === 's')) {
-          e.preventDefault();
-          return false;
-        }
-      });
-      
-      // Disable text selection
-      document.addEventListener('selectstart', function(e) {
-        e.preventDefault();
-        return false;
-      });
-      
-      // Disable drag
-      document.addEventListener('dragstart', function(e) {
-        e.preventDefault();
-        return false;
-      });
+      // Enable right-click and developer tools for debugging
+      console.log('Debug mode enabled - right-click and dev tools available');
     </script>
   </body>
 </html>

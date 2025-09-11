@@ -38,13 +38,18 @@ export const Signin = () => {
         }
 
         try {
+            console.log('🔐 Attempting signin with:', { username, baseURL: axios.defaults.baseURL });
             const response = await axios.post("/api/v1/user/signin", {
                 username,
                 password
             });
+            console.log('✅ Signin successful:', response.data);
             localStorage.setItem("token", response.data.token);
             navigate("/dashboard");
         } catch (err) {
+            console.error('❌ Signin failed:', err);
+            console.error('Error response:', err.response?.data);
+            console.error('Error status:', err.response?.status);
             setError(err.response?.data?.message || "Something went wrong. Please try again.");
         } finally {
             setLoading(false);
