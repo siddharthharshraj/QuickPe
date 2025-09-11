@@ -45,7 +45,7 @@ export const Signup = () => {
         setError("");
         
         try {
-            const response = await axios.post("/v1/user/signup", {
+            const response = await axios.post("/user/signup", {
                 username,
                 firstName,
                 lastName,

@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
 
 // Create axios instance with default config
 const apiClient = axios.create({
-    baseURL: '/v1', // Use relative path for production
+  baseURL: '/api/v1', // This will be relative to the current domain
   timeout: 10000, // 10 seconds
   withCredentials: false,
   headers: {

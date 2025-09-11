@@ -17,7 +17,26 @@ import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Set the base URL for all axios requests
-axios.defaults.baseURL = '/api';
+axios.defaults.baseURL = process.env.NODE_ENV === 'production' 
+  ? '/api' 
+  : 'http://localhost:3000/api';
+
+// Set withCredentials to true if using cookies for authentication
+axios.defaults.withCredentials = false;
+
+// Add a request interceptor to add auth token
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 function App() {
   return (

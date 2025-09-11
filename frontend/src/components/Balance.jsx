@@ -27,7 +27,7 @@ export const Balance = () => {
     const addFakeMoney = async (amount) => {
         setAddingMoney(true);
         try {
-            const response = await apiClient.post("/account/add-money", { amount });
+            const response = await apiClient.post("/account/deposit", { amount });
             setBalance(response.data.newBalance);
         } catch (error) {
             console.error("Add money error:", error);
