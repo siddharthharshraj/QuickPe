@@ -13,13 +13,17 @@ import About from './pages/About';
 import KPIReports from './pages/KPIReports';
 import { Settings } from "./pages/Settings";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import NotFound from './pages/NotFound';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Set the base URL for all axios requests
-axios.defaults.baseURL = 'http://localhost:3001';
+axios.defaults.baseURL = process.env.NODE_ENV === 'production' 
+  ? 'https://quickpe.siddharth-dev.tech/api' 
+  : 'http://localhost:3001';
 
 function App() {
   return (
-    <>
+    <ErrorBoundary>
        <BrowserRouter>
         <Routes>
           <Route path="/signup" element={<Signup />} />
@@ -42,9 +46,10 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/" element={<Landing />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </>
+    </ErrorBoundary>
   )
 }
 

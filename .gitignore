@@ -52,13 +52,16 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
+# dotenv Environment variables (ALL .env files)
 .env
+.env.*
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
-.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -180,6 +183,27 @@ real-test-results-*.json
 # Package lock files (keep package.json but ignore lock files for flexibility)
 package-lock.json
 yarn.lock
+
+# Allow deployment configuration files
+!vercel.json
+!package.json
+!.env.example
+
+# Ignore documentation folders and deployment files
+MARKDOWN/
+DEPLOYMENT_CHECKLIST.md
+
+# Security - Additional sensitive files
+*.key
+*.pem
+*.p12
+*.pfx
+config/secrets.json
+config/credentials.json
+secrets/
+credentials/
+.secrets
+.credentials
 
 # MongoDB data
 data/
