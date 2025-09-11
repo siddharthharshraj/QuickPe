@@ -1,0 +1,122 @@
+config:
+  target: 'http://localhost:3001'
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      name: "Warm up"
+    - duration: 120
+      arrivalRate: 50
+      name: "Ramp up load"
+    - duration: 300
+      arrivalRate: 100
+      name: "Sustained high load"
+    - duration: 120
+      arrivalRate: 200
+      name: "Spike test"
+    - duration: 60
+      arrivalRate: 50
+      name: "Cool down"
+  payload:
+    path: "test-users.csv"
+    fields:
+      - "username"
+      - "password"
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    publish-metrics:
+      - type: cloudwatch
+        region: us-east-1
+  processor: "./artillery-processor.js"
+
+scenarios:
+  - name: "Authentication Flow"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/v1/user/signin"
+          json:
+            username: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      - think: 2
+      
+  - name: "Balance Check"
+    weight: 25
+    flow:
+      - post:
+          url: "/api/v1/user/signin"
+          json:
+            username: "shr6219@gmail.com"
+            password: "password123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      - get:
+          url: "/api/v1/account/balance"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      - think: 1
+
+  - name: "Transaction History"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/v1/user/signin"
+          json:
+            username: "shr6219@gmail.com"
+            password: "password123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      - get:
+          url: "/api/v1/account/transactions"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      - think: 3
+
+  - name: "User Search"
+    weight: 15
+    flow:
+      - post:
+          url: "/api/v1/user/signin"
+          json:
+            username: "shr6219@gmail.com"
+            password: "password123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      - get:
+          url: "/api/v1/user/bulk?filter=test"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      - think: 2
+
+  - name: "Notifications"
+    weight: 10
+    flow:
+      - post:
+          url: "/api/v1/user/signin"
+          json:
+            username: "shr6219@gmail.com"
+            password: "password123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      - get:
+          url: "/api/v1/notifications"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      - think: 1
