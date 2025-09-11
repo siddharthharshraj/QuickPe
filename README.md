@@ -5,7 +5,7 @@
 ![QuickPe Logo](https://img.shields.io/badge/QuickPe-Digital%20Wallet-blue?style=for-the-badge&logo=wallet&logoColor=white)
 
 [![Live Demo](https://img.shields.io/badge/Live-Demo-success?style=for-the-badge&logo=vercel)](https://quickpe.siddharth-dev.tech)
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)](https://github.com/siddharthharshraj/quickpe-wallet)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)](https://github.com/siddharthharshraj/QuickPe)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
 **A modern, secure, and lightning-fast digital wallet application built for the future of payments**

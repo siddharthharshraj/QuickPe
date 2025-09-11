@@ -204,6 +204,7 @@ secrets/
 credentials/
 .secrets
 .credentials
+jwt-secret.md
 
 # MongoDB data
 data/
