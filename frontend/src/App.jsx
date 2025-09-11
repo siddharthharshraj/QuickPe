@@ -16,12 +16,16 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// Set the base URL for all axios requests
-axios.defaults.baseURL = process.env.NODE_ENV === 'production' 
-  ? '/api' 
-  : 'http://localhost:3000/api';
+// Environment-aware axios configuration
+const isBrowser = typeof window !== 'undefined';
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 
+  (process.env.NODE_ENV === 'production' 
+    ? '/api' 
+    : 'http://localhost:3000/api'
+  );
 
-// Set withCredentials to true if using cookies for authentication
+// Set the base URL for all axios requests
+axios.defaults.baseURL = baseURL;
 axios.defaults.withCredentials = false;
 
 // Add a request interceptor to add auth token

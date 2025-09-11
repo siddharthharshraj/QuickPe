@@ -23,7 +23,7 @@ export const Appbar = () => {
                 // Fetch initial notifications
                 const fetchNotifications = async () => {
                     try {
-                        const response = await axios.get('/api/v1/notifications', {
+                        const response = await axios.get('/v1/notifications', {
                             headers: {
                                 'Authorization': `Bearer ${token}`
                             }
@@ -107,7 +107,7 @@ export const Appbar = () => {
         try {
             const token = localStorage.getItem("token");
             
-            await axios.put('/api/v1/notifications?action=read-all', {}, {
+            await axios.put('/v1/notifications?action=read-all', {}, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -298,4 +298,5 @@ export const Appbar = () => {
             )}
         </div>
     </div>
-}
+    );
+};

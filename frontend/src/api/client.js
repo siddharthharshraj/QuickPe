@@ -1,9 +1,17 @@
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 
+// Environment-aware baseURL configuration
+const isBrowser = typeof window !== 'undefined';
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 
+  (isBrowser 
+    ? '/api/v1' 
+    : `http://localhost:${process.env.PORT || 3000}/api/v1`
+  );
+
 // Create axios instance with default config
 const apiClient = axios.create({
-  baseURL: '/api/v1', // This will be relative to the current domain
+  baseURL,
   timeout: 10000, // 10 seconds
   withCredentials: false,
   headers: {

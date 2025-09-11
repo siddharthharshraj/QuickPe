@@ -1,46 +1,67 @@
 import { useEffect, useRef } from 'react';
-import { io } from 'socket.io-client';
+import axios from 'axios';
 
 export const useSocket = (userId, onNotification) => {
-    const socketRef = useRef(null);
+    const intervalRef = useRef(null);
+    const lastNotificationRef = useRef(null);
 
     useEffect(() => {
         if (!userId) return;
 
-        // Initialize socket connection
-        const socket = io('/');
-        socketRef.current = socket;
+        // Serverless-compatible notification polling
+        const pollNotifications = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return;
 
-        // Join user room
-        socket.emit('join', userId);
+                const response = await axios.get('/v1/notifications', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
-        // Listen for transaction notifications
-        socket.on('transaction', (data) => {
-            onNotification({
-                type: data.type === 'received' ? 'success' : 'info',
-                message: data.type === 'received' 
-                    ? `Received ₹${data.amount} from ${data.from}`
-                    : `Sent ₹${data.amount} to ${data.to}`,
-                timestamp: data.timestamp,
-                amount: data.amount
-            });
-        });
+                if (response.data.success && response.data.notifications) {
+                    const notifications = response.data.notifications;
+                    
+                    // Check for new notifications since last poll
+                    if (notifications.length > 0) {
+                        const latestNotification = notifications[0];
+                        
+                        // Only trigger if this is a new notification
+                        if (!lastNotificationRef.current || 
+                            latestNotification._id !== lastNotificationRef.current._id) {
+                            
+                            lastNotificationRef.current = latestNotification;
+                            
+                            // Trigger notification callback
+                            onNotification({
+                                type: latestNotification.type === 'TRANSFER_RECEIVED' ? 'success' : 'info',
+                                message: latestNotification.message,
+                                timestamp: latestNotification.createdAt,
+                                title: latestNotification.title
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error polling notifications:', error);
+            }
+        };
 
-        socket.on('connect', () => {
-            console.log('Dashboard socket connected');
-        });
+        // Initial poll
+        pollNotifications();
 
-        socket.on('disconnect', () => {
-            console.log('Dashboard socket disconnected');
-        });
+        // Set up polling interval (every 5 seconds)
+        intervalRef.current = setInterval(pollNotifications, 5000);
+
+        console.log('Notification polling started for user:', userId);
 
         // Cleanup on unmount
         return () => {
-            if (socketRef.current) {
-                socketRef.current.disconnect();
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                console.log('Notification polling stopped');
             }
         };
     }, [userId, onNotification]);
 
-    return socketRef.current;
+    return null; // No socket object in polling mode
 };

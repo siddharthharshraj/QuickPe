@@ -13,7 +13,7 @@ const KPIReports = () => {
         const loadTestResults = async () => {
             try {
                 // Try to load the most recent test results
-                const response = await fetch('/api/v1/test-results/latest');
+                const response = await fetch('/v1/test-results/latest');
                 if (response.ok) {
                     const realResults = await response.json();
                     setTestResults(formatTestResults(realResults));

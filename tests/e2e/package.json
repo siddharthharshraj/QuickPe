@@ -1,0 +1,19 @@
+{
+  "name": "quickpe-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for QuickPe application",
+  "scripts": {
+    "test": "jest --verbose",
+    "test:local": "TEST_BASE_URL=http://localhost:3000 jest --verbose",
+    "test:production": "jest --verbose"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "axios": "^1.6.7"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 30000,
+    "setupFilesAfterEnv": ["<rootDir>/setup.js"]
+  }
+}
