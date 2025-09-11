@@ -1,7 +1,7 @@
-const { connectDB, User } = require('../../../backend/db');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { z } = require('zod');
+import { connectDB, User } from '../../../backend/db.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 
 const signinSchema = z.object({
     username: z.string().email(),
@@ -26,13 +26,13 @@ export default async function handler(req, res) {
     }
 
     try {
-        console.log('🔐 Signin attempt:', req.body);
+        console.log(' Signin attempt:', req.body);
         
         await connectDB();
         
         const validation = signinSchema.safeParse(req.body);
         if (!validation.success) {
-            console.log('❌ Validation failed:', validation.error);
+            console.log(' Validation failed:', validation.error);
             return res.status(400).json({
                 success: false,
                 message: "Invalid inputs",
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         const user = await User.findOne({ username });
         
         if (!user || !await bcrypt.compare(password, user.password)) {
-            console.log('❌ Invalid credentials for:', username);
+            console.log(' Invalid credentials for:', username);
             return res.status(401).json({
                 success: false,
                 message: "Invalid credentials"
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
             username: user.username
         }, process.env.JWT_SECRET);
         
-        console.log('✅ Signin successful for:', username);
+        console.log(' Signin successful for:', username);
         
         return res.json({
             success: true,
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
         });
         
     } catch (error) {
-        console.error('❌ Signin error:', error);
+        console.error(' Signin error:', error);
         return res.status(500).json({
             success: false,
             message: "Internal server error",

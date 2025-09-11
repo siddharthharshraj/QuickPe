@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const connectDB = async () => {
     try {
@@ -87,4 +87,4 @@ const accountSchema = new mongoose.Schema({
 const Account = mongoose.model("Account", accountSchema);
 const User = mongoose.model("User", userSchema);
 
-module.exports = { connectDB, User, Account };
+export { connectDB, User, Account };

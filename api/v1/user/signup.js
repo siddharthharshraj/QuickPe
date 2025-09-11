@@ -1,7 +1,7 @@
-const { connectDB, User, Account } = require('../../../backend/db');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { z } = require('zod');
+import { connectDB, User, Account } from '../../../backend/db.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 
 const signupSchema = z.object({
     username: z.string().email(),

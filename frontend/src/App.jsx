@@ -17,9 +17,7 @@ import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Set the base URL for all axios requests
-axios.defaults.baseURL = process.env.NODE_ENV === 'production' 
-  ? '/api' 
-  : 'http://localhost:3001';
+axios.defaults.baseURL = '/api';
 
 function App() {
   return (
