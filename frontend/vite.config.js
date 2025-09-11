@@ -22,7 +22,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
-    minify: true,
+    minify: 'esbuild',
     cssMinify: true,
     rollupOptions: {
       output: {
