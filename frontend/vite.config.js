@@ -22,7 +22,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
-    minify: 'terser',
+    minify: true,
     cssMinify: true,
     rollupOptions: {
       output: {
@@ -33,16 +33,6 @@ export default defineConfig({
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
-      }
-    },
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.warn']
-      },
-      mangle: {
-        safari10: true
       }
     },
     chunkSizeWarningLimit: 1000
