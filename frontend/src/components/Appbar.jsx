@@ -151,29 +151,30 @@ export const Appbar = () => {
         };
     }, []);
 
-    return <div className="shadow h-14 flex justify-between items-center px-4 bg-white border-b">
-        <div 
-            className="flex items-center cursor-pointer"
-            onClick={() => navigate('/dashboard')}
-        >
-            <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">₹</span>
+    return (
+        <div className="shadow h-14 flex justify-between items-center px-4 bg-white border-b">
+            <div 
+                className="flex items-center cursor-pointer"
+                onClick={() => navigate('/dashboard')}
+            >
+                <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <span className="text-white font-bold text-lg">₹</span>
+                    </div>
+                    <span className="text-xl font-bold text-gray-900">QuickPe</span>
                 </div>
-                <span className="text-xl font-bold text-gray-900">QuickPe</span>
             </div>
-        </div>
         
-        <div className="flex items-center space-x-4">
-            <div className="text-gray-700 hidden sm:block">
-                Welcome back, <span className="font-semibold">{userName}</span>
-            </div>
-            <div className="text-gray-700 sm:hidden">
-                <span className="font-semibold">{userName}</span>
-            </div>
+            <div className="flex items-center space-x-4">
+                <div className="text-gray-700 hidden sm:block">
+                    Welcome back, <span className="font-semibold">{userName}</span>
+                </div>
+                <div className="text-gray-700 sm:hidden">
+                    <span className="font-semibold">{userName}</span>
+                </div>
             
-            {/* Notification Bell */}
-            <div className="relative notification-container">
+                {/* Notification Bell */}
+                <div className="relative notification-container">
                 <button 
                     onClick={() => {
                         setIsNotificationOpen(!isNotificationOpen);
@@ -263,40 +264,41 @@ export const Appbar = () => {
                     )}
                 </div>
             )}
-        </div>
+                </div>
         
-        <div className="relative dropdown-container">
-            <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg p-2"
-                aria-expanded={isDropdownOpen}
-                aria-haspopup="true"
-            >
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                    {userName[0].toUpperCase()}
-                </div>
-                <svg className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
+                <div className="relative dropdown-container">
+                    <button
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg p-2"
+                        aria-expanded={isDropdownOpen}
+                        aria-haspopup="true"
+                    >
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                            {userName[0].toUpperCase()}
+                        </div>
+                        <svg className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
 
-            {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                    <button
-                        onClick={() => navigate('/settings')}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
-                    >
-                        Settings
-                    </button>
-                    <button
-                        onClick={handleLogout}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
-                    >
-                        Sign out
-                    </button>
+                    {isDropdownOpen && (
+                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                            <button
+                                onClick={() => navigate('/settings')}
+                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                            >
+                                Settings
+                            </button>
+                            <button
+                                onClick={handleLogout}
+                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                            >
+                                Sign out
+                            </button>
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
         </div>
-    </div>
     );
 };

@@ -1,16 +1,21 @@
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
+import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const router = express.Router();
 
 // Get the latest test results
-router.get('/latest', (req, res) => {
+router.get('/latest', async (req, res) => {
     try {
         // Look for the most recent test results file
-        const files = fs.readdirSync(__dirname + '/../../')
-            .filter(file => file.startsWith('real-test-results-') && file.endsWith('.json'))
+        const files = await fs.readdir(__dirname + '/../../')
+            .then(files => files.filter(file => file.startsWith('real-test-results-') && file.endsWith('.json'))
             .sort()
-            .reverse();
+            .reverse());
 
         if (files.length === 0) {
             return res.status(404).json({
@@ -21,7 +26,8 @@ router.get('/latest', (req, res) => {
 
         const latestFile = files[0];
         const filePath = path.join(__dirname, '../../', latestFile);
-        const testResults = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const data = await fs.readFile(filePath, 'utf8');
+        const testResults = JSON.parse(data);
 
         res.json(testResults);
     } catch (error) {
@@ -34,16 +40,17 @@ router.get('/latest', (req, res) => {
 });
 
 // Get all available test results
-router.get('/all', (req, res) => {
+router.get('/all', async (req, res) => {
     try {
-        const files = fs.readdirSync(__dirname + '/../../')
-            .filter(file => file.startsWith('real-test-results-') && file.endsWith('.json'))
+        const files = await fs.readdir(__dirname + '/../../')
+            .then(files => files.filter(file => file.startsWith('real-test-results-') && file.endsWith('.json'))
             .sort()
-            .reverse();
+            .reverse());
 
-        const results = files.map(file => {
+        const results = await Promise.all(files.map(async file => {
             const filePath = path.join(__dirname, '../../', file);
-            const testResults = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            const data = await fs.readFile(filePath, 'utf8');
+            const testResults = JSON.parse(data);
             return {
                 filename: file,
                 timestamp: testResults.metadata.timestamp,
@@ -51,7 +58,7 @@ router.get('/all', (req, res) => {
                 overallScore: testResults.finalMetrics ? 
                     Math.round((testResults.finalMetrics.uptime / 100) * 100) : 0
             };
-        });
+        }));
 
         res.json(results);
     } catch (error) {
@@ -63,4 +70,4 @@ router.get('/all', (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

@@ -1,4 +1,7 @@
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const connectDB = async () => {
     try {
@@ -10,39 +13,20 @@ const connectDB = async () => {
             socketTimeoutMS: 45000
         });
         
-        // Create indexes for better performance
-        await createIndexes();
-        
         console.log(`MongoDB Connected with connection pooling: ${conn.connection.host}`);
+        
+        // Create indexes for better performance
+        await User.collection.createIndex({ username: 1 }, { unique: true });
+        await User.collection.createIndex({ firstName: 1, lastName: 1 });
+        await Account.collection.createIndex({ userId: 1 }, { unique: true });
+        
+        return conn;
     } catch (error) {
         console.error('Database connection error:', error);
         process.exit(1);
     }
 };
 
-const createIndexes = async () => {
-    try {
-        // Simple v1.0 indexes - no external model dependencies
-        console.log('Creating basic indexes for v1.0...');
-        
-        // Basic user indexes
-        const db = mongoose.connection.db;
-        await db.collection('users').createIndex({ username: 1 }, { unique: true });
-        await db.collection('users').createIndex({ firstName: 1, lastName: 1 });
-        
-        // Basic account indexes  
-        await db.collection('accounts').createIndex({ userId: 1 }, { unique: true });
-        
-        console.log('Basic v1.0 indexes created successfully');
-    } catch (error) {
-        console.log('Index creation skipped (normal for v1.0):', error.message);
-    }
-};
-
-// Use environment variable or fallback to local MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/wallet";
-
-// Create a Schema for Users
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
@@ -81,10 +65,11 @@ const accountSchema = new mongoose.Schema({
   balance: {
     type: Number,
     required: true,
+    default: 0,
   },
 });
 
-const Account = mongoose.model("Account", accountSchema);
 const User = mongoose.model("User", userSchema);
+const Account = mongoose.model("Account", accountSchema);
 
 export { connectDB, User, Account };

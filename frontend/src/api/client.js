@@ -1,25 +1,25 @@
 import axios from 'axios';
-import { jwtDecode } from 'jwt-decode';
 
-// Environment-aware baseURL configuration
-const isBrowser = typeof window !== 'undefined';
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 
-  (isBrowser 
-    ? '/api/v1' 
-    : `http://localhost:${process.env.PORT || 3000}/api/v1`
-  );
+// Environment-aware API base URL configuration for Railway
+const getApiBaseUrl = () => {
+  // For Railway deployment - check if we're in production
+  if (import.meta.env.PROD) {
+    return import.meta.env.VITE_API_URL || 'https://quickpe-backend-production.railway.app/api/v1';
+  }
+  
+  // For local development
+  return 'http://localhost:5000/api/v1';
+};
 
-// Create axios instance with default config
 const apiClient = axios.create({
-  baseURL,
-  timeout: 10000, // 10 seconds
-  withCredentials: false,
+  baseURL: getApiBaseUrl(),
+  timeout: 15000, // Increased timeout for Railway cold starts
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add a request interceptor to add auth token
+// Request interceptor for auth token
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -33,13 +33,12 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Add a response interceptor to handle errors
+// Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle 401 Unauthorized errors
     if (error.response?.status === 401) {
-      // Clear local storage and redirect to login
+      // Token expired or invalid
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/signin';

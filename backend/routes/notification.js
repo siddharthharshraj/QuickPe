@@ -1,100 +1,75 @@
-const express = require('express');
-const { authMiddleware } = require('../middleware');
-const Notification = require('../models/Notification');
+import express from 'express';
+import { authMiddleware } from '../middleware/index.js';
 
 const router = express.Router();
 
-// Get all notifications for current user
+// Mock notifications for Railway deployment (simplified)
+const mockNotifications = [];
+
+// Get notifications for user
 router.get('/', authMiddleware, async (req, res) => {
     try {
+        // Return mock notifications for now
+        const notifications = mockNotifications.filter(n => n.userId === req.userId);
         
-        const notifications = await Notification.find({ 
-            userId: req.userId 
-        }).sort({ createdAt: -1 }).limit(50); // Limit to 50 most recent
-        
-        res.json(notifications);
+        res.json({
+            notifications: notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        });
     } catch (error) {
-        console.error('❌ Error fetching notifications:', error);
-        res.status(500).json({ 
-            message: 'Failed to fetch notifications',
-            error: error.message 
+        console.error('Notification fetch error:', error);
+        res.status(500).json({
+            message: "Failed to fetch notifications"
         });
     }
 });
 
-// Get unread notifications count
-router.get('/unread-count', authMiddleware, async (req, res) => {
+// Mark notifications as read
+router.put('/mark-read', authMiddleware, async (req, res) => {
     try {
-        console.log('🔢 Getting unread count for user:', req.userId);
-        
-        const count = await Notification.countDocuments({ 
-            userId: req.userId, 
-            read: false 
+        // Mark all notifications as read for the user
+        mockNotifications.forEach(notification => {
+            if (notification.userId === req.userId) {
+                notification.read = true;
+            }
         });
-        
-        console.log('🔢 Unread count:', count);
-        res.json({ count });
+
+        res.json({
+            message: "Notifications marked as read"
+        });
     } catch (error) {
-        console.error('❌ Error getting unread count:', error);
-        res.status(500).json({ 
-            message: 'Failed to get unread count',
-            error: error.message 
+        console.error('Mark read error:', error);
+        res.status(500).json({
+            message: "Failed to mark notifications as read"
         });
     }
 });
 
-// Mark all notifications as read
-router.put('/read-all', authMiddleware, async (req, res) => {
+// Create a notification (for testing)
+router.post('/create', authMiddleware, async (req, res) => {
     try {
+        const { message, type = 'info' } = req.body;
         
-        const result = await Notification.updateMany(
-            { userId: req.userId, read: false },
-            { $set: { read: true } }
-        );
+        const notification = {
+            _id: Date.now().toString(),
+            userId: req.userId,
+            type,
+            message,
+            read: false,
+            createdAt: new Date()
+        };
         
+        mockNotifications.push(notification);
         
-        // Emit socket event to update UI
-        const io = req.app.get('io');
-        if (io) {
-            io.to(`user_${req.userId}`).emit('notifications:read-all');
-        }
-        
-        res.json({ 
-            message: 'All notifications marked as read',
-            modifiedCount: result.modifiedCount 
+        res.json({
+            message: "Notification created",
+            notification
         });
     } catch (error) {
-        console.error('❌ Error marking notifications as read:', error);
-        res.status(500).json({ 
-            message: 'Failed to update notifications',
-            error: error.message 
+        console.error('Create notification error:', error);
+        res.status(500).json({
+            message: "Failed to create notification"
         });
     }
 });
 
-// Mark specific notification as read
-router.put('/:id/read', authMiddleware, async (req, res) => {
-    try {
-        const notificationId = req.params.id;
-        
-        const notification = await Notification.findOneAndUpdate(
-            { _id: notificationId, userId: req.userId },
-            { $set: { read: true } },
-            { new: true }
-        );
-        
-        if (!notification) {
-            return res.status(404).json({ message: 'Notification not found' });
-        }
-        
-        res.json(notification);
-    } catch (error) {
-        console.error('❌ Error marking notification as read:', error);
-        res.status(500).json({ 
-            message: 'Failed to update notification',
-            error: error.message 
-        });
-    }
-});
-
-module.exports = router;
+export default router;

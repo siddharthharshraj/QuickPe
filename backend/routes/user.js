@@ -1,24 +1,24 @@
-// backend/routes/user.js
-const express = require('express');
-const bcrypt = require('bcryptjs');
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import zod from 'zod';
+import { User, Account } from '../db.js';
+import { authMiddleware } from '../middleware/index.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const router = express.Router();
-const zod = require("zod");
-const { User, Account } = require("../db");
-const jwt = require("jsonwebtoken");
-require('dotenv').config();
-const  { authMiddleware } = require("../middleware");
 
 const signupBody = zod.object({
     username: zod.string().email(),
-	firstName: zod.string(),
-	lastName: zod.string(),
-	password: zod.string()
-})
+    firstName: zod.string(),
+    lastName: zod.string(),
+    password: zod.string()
+});
 
 router.post("/signup", async (req, res) => {
     try {
-        
         const { success, error } = signupBody.safeParse(req.body);
         if (!success) {
             return res.status(411).json({
@@ -37,7 +37,6 @@ router.post("/signup", async (req, res) => {
             });
         }
 
-        // Hash password before storing
         const saltRounds = 12;
         const hashedPassword = await bcrypt.hash(req.body.password, saltRounds);
 
@@ -77,10 +76,9 @@ router.post("/signup", async (req, res) => {
     }
 })
 
-
 const signinBody = zod.object({
     username: zod.string().email(),
-	password: zod.string()
+    password: zod.string()
 })
 
 router.post("/signin", async (req, res) => {
@@ -116,7 +114,7 @@ router.post("/signin", async (req, res) => {
 })
 
 const updateBody = zod.object({
-	password: zod.string().optional(),
+    password: zod.string().optional(),
     firstName: zod.string().optional(),
     lastName: zod.string().optional(),
 })
@@ -129,13 +127,18 @@ router.put("/", authMiddleware, async (req, res) => {
         })
     }
 
-    await User.updateOne(req.body, {
-        id: req.userId
-    })
+    const updateData = {};
+    if (req.body.firstName) updateData.firstName = req.body.firstName;
+    if (req.body.lastName) updateData.lastName = req.body.lastName;
+    if (req.body.password) {
+        updateData.password = await bcrypt.hash(req.body.password, 10);
+    }
+
+    await User.updateOne({ _id: req.userId }, updateData);
 
     res.json({
         message: "Updated successfully"
-    })
+    });
 })
 
 router.get("/bulk", authMiddleware, async (req, res) => {
@@ -298,4 +301,4 @@ router.put('/change-password', authMiddleware, async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;
