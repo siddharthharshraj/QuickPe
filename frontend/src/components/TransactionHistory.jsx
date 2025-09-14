@@ -1,17 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
-import apiClient from "../api/client";
+import apiClient from "../services/api/client";
 import { SkeletonLoader } from "./SkeletonLoader";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { PDFStatement } from './PDFStatement';
 
-export const TransactionHistory = () => {
-    const [transactions, setTransactions] = useState([]);
-    const [loading, setLoading] = useState(true);
+export const TransactionHistory = ({ 
+    transactions: propTransactions, 
+    loading: propLoading, 
+    showPagination = false, 
+    itemsPerPage = 10,
+    limit = null
+}) => {
+    const [transactions, setTransactions] = useState(propTransactions || []);
+    const [loading, setLoading] = useState(propLoading !== undefined ? propLoading : true);
     const [error, setError] = useState("");
     const [downloadingPDF, setDownloadingPDF] = useState(false);
     const [pagination, setPagination] = useState({
         page: 1,
-        limit: 10,
+        limit: itemsPerPage,
         total: 0,
         pages: 1
     });
@@ -25,15 +30,24 @@ export const TransactionHistory = () => {
     const [filteredTransactions, setFilteredTransactions] = useState([]);
     const [copySuccess, setCopySuccess] = useState("");
 
+    // Update transactions when props change
+    useEffect(() => {
+        if (propTransactions) {
+            setTransactions(propTransactions);
+            setLoading(propLoading || false);
+        }
+    }, [propTransactions, propLoading]);
+
     const fetchTransactions = useCallback(async () => {
+        if (propTransactions) return; // Don't fetch if transactions are provided as props
+        
         setLoading(true);
         setError("");
         
         try {
-            // Add 3 second delay for better UX with skeleton loading
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            const response = await apiClient.get(`/account/transactions?page=${pagination.page}&limit=${pagination.limit}`);
+            // Use limit prop if provided (for Recent Activity), otherwise use pagination limit
+            const requestLimit = limit || pagination.limit;
+            const response = await apiClient.get(`/account/transactions?page=${pagination.page}&limit=${requestLimit}`);
             
             if (response.data && response.data.transactions) {
                 const transactionsArray = Array.isArray(response.data.transactions) ? response.data.transactions : [];
@@ -61,7 +75,7 @@ export const TransactionHistory = () => {
         } finally {
             setLoading(false);
         }
-    }, [pagination.page, pagination.limit]);
+    }, [pagination.page, pagination.limit, limit]);
 
     useEffect(() => {
         fetchTransactions();
@@ -71,7 +85,7 @@ export const TransactionHistory = () => {
     useEffect(() => {
         let filtered = transactions;
 
-        // Filter by search query (transaction ID, description, or user name)
+        // Filter by search query (transaction ID, description, user name, or QuickPe ID)
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
             
@@ -79,10 +93,14 @@ export const TransactionHistory = () => {
                 const transactionId = (transaction.transactionId || '').toString().toLowerCase();
                 const description = (transaction.description || '').toString().toLowerCase();
                 const userName = (transaction.otherUser?.name || '').toString().toLowerCase();
+                const quickpeId = (transaction.otherUser?.quickpeId || '').toString().toLowerCase();
+                const amount = (transaction.amount || '').toString();
                 
                 return transactionId.includes(query) ||
                        description.includes(query) ||
-                       userName.includes(query);
+                       userName.includes(query) ||
+                       quickpeId.includes(query) ||
+                       amount.includes(query);
             });
         }
 
@@ -172,290 +190,46 @@ export const TransactionHistory = () => {
     const downloadPDFStatement = async () => {
         setDownloadingPDF(true);
         try {
-            // Get user info from token
+            // Get user info from localStorage and token
             const token = localStorage.getItem("token");
-            let userInfo = { firstName: "User", lastName: "", username: "", userId: "" };
+            const storedUser = localStorage.getItem("user");
+            let userInfo = { firstName: "User", lastName: "", email: "", quickpeId: "" };
             
-            if (token) {
+            if (storedUser) {
                 try {
-                    const { jwtDecode } = await import("jwt-decode");
-                    const decoded = jwtDecode(token);
+                    const parsedUser = JSON.parse(storedUser);
                     userInfo = {
-                        firstName: decoded.firstName || "User",
-                        lastName: decoded.lastName || "",
-                        username: decoded.username || "",
-                        userId: decoded.userId || ""
+                        firstName: parsedUser.firstName || "User",
+                        lastName: parsedUser.lastName || "",
+                        email: parsedUser.email || "",
+                        quickpeId: parsedUser.quickpeId || ""
                     };
                 } catch (error) {
-                    console.warn('Could not decode token for PDF');
+                    console.warn('Could not parse stored user data');
                 }
             }
 
-            // Fetch all transactions for PDF
+            // Fetch fresh data for PDF
             let allTransactions = [];
+            let userBalance = 0;
+            
             try {
-                const response = await apiClient.get('/account/transactions?limit=1000');
-                allTransactions = response.data.transactions || [];
-            } catch (apiError) {
-                console.warn('Failed to fetch transactions, generating PDF without transaction data:', apiError);
-            }
-
-            // Create PDF
-            const doc = new jsPDF();
-            
-            // Header
-            doc.setFontSize(18);
-            doc.setTextColor(59, 130, 246);
-            doc.text('QuickPe Wallet Statement', 20, 28);
-            
-            // User info in compact table format
-            const userTableData = [
-                ['Account Holder', `${userInfo.firstName} ${userInfo.lastName}`.trim()],
-                ['Email', userInfo.username || 'N/A'],
-                ['User ID', userInfo.userId || 'N/A'],
-                ['Generated', `${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`]
-            ];
-
-            autoTable(doc, {
-                startY: 38,
-                head: [['Field', 'Details']],
-                body: userTableData,
-                theme: 'grid',
-                headStyles: {
-                    fillColor: [59, 130, 246],
-                    textColor: 255,
-                    fontSize: 10,
-                    fontStyle: 'bold'
-                },
-                bodyStyles: {
-                    fontSize: 9,
-                    textColor: 50
-                },
-                columnStyles: {
-                    0: { cellWidth: 40, fontStyle: 'bold' },
-                    1: { cellWidth: 130 }
-                },
-                margin: { left: 20, right: 20 }
-            });
-
-            const userTableEndY = doc.lastAutoTable.finalY + 10;
-
-            // Transaction table
-            let finalY;
-            if (allTransactions.length > 0) {
-                const tableData = allTransactions.map((transaction, index) => [
-                    (index + 1).toString(),
-                    transaction.transactionId || `TXN${Date.now()}${index}`,
-                    new Date(transaction.timestamp).toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric'
+                const [transactionsRes, balanceRes] = await Promise.all([
+                    apiClient.get('/account/transactions', {
+                        headers: { Authorization: `Bearer ${token}` }
                     }),
-                    new Date(transaction.timestamp).toLocaleTimeString('en-IN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                    }),
-                    transaction.type === 'received' 
-                        ? `Money Received from ${transaction.otherUser?.name || 'Unknown User'}`
-                        : `Money Sent to ${transaction.otherUser?.name || 'Unknown User'}`,
-                    transaction.type === 'received' ? 'CREDIT' : 'DEBIT',
-                    `Rs. ${Number(transaction.amount).toLocaleString('en-IN', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    })}`,
-                    transaction.description || 'Money Transfer'
+                    apiClient.get('/account/balance', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    })
                 ]);
-
-                autoTable(doc, {
-                    startY: userTableEndY,
-                    head: [['S.No.', 'Transaction ID', 'Date', 'Time', 'Description', 'Type', 'Amount', 'Reference']],
-                    body: tableData,
-                    theme: 'striped',
-                    headStyles: {
-                        fillColor: [59, 130, 246],
-                        textColor: 255,
-                        fontSize: 9,
-                        fontStyle: 'bold'
-                    },
-                    bodyStyles: {
-                        fontSize: 8,
-                        textColor: 50
-                    },
-                    columnStyles: {
-                        0: { cellWidth: 12 },
-                        1: { cellWidth: 22 },
-                        2: { cellWidth: 18 },
-                        3: { cellWidth: 16 },
-                        4: { cellWidth: 40 },
-                        5: { cellWidth: 16 },
-                        6: { cellWidth: 20 },
-                        7: { cellWidth: 20 }
-                    },
-                    margin: { left: 20, right: 20 }
-                });
-
-                finalY = doc.lastAutoTable.finalY;
-            } else {
-                finalY = userTableEndY + 15;
-                doc.setFontSize(11);
-                doc.setTextColor(150, 150, 150);
-                doc.text('No transactions found for this account.', 20, finalY);
-                doc.setFontSize(9);
-                doc.text('Start using QuickPe to send and receive money!', 20, finalY + 12);
+                allTransactions = transactionsRes.data.transactions || [];
+                userBalance = balanceRes.data.balance || 0;
+            } catch (apiError) {
+                console.warn('Failed to fetch data, generating PDF with available data:', apiError);
             }
 
-            // Summary section - compact
-            const totalReceived = allTransactions
-                .filter(t => t.type === 'received')
-                .reduce((sum, t) => sum + Number(t.amount), 0);
-            
-            const totalSent = allTransactions
-                .filter(t => t.type === 'sent')
-                .reduce((sum, t) => sum + Number(t.amount), 0);
-
-            // Get current balance
-            let currentBalance = 0;
-            try {
-                const balanceResponse = await apiClient.get('/account/balance');
-                currentBalance = balanceResponse.data.balance || 0;
-            } catch (error) {
-                console.warn('Could not fetch balance for PDF');
-            }
-
-            // Compact summary box
-            const summaryY = finalY + 12;
-            doc.setDrawColor(59, 130, 246);
-            doc.setLineWidth(0.5);
-            doc.rect(20, summaryY, 170, 25);
-            
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(59, 130, 246);
-            doc.text('ACCOUNT SUMMARY', 25, summaryY + 8);
-            
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(0, 0, 0);
-            doc.text(`Total Received: Rs. ${totalReceived.toLocaleString('en-IN')}`, 25, summaryY + 15);
-            doc.text(`Total Sent: Rs. ${totalSent.toLocaleString('en-IN')}`, 25, summaryY + 20);
-            doc.text(`Current Balance: Rs. ${currentBalance.toLocaleString('en-IN')}`, 115, summaryY + 15);
-            doc.text(`Total Transactions: ${allTransactions.length}`, 115, summaryY + 20);
-
-            const summaryEndY = summaryY + 25;
-
-            // Check if footer will fit on current page
-            const pageHeight = doc.internal.pageSize.height;
-            const footerHeight = 40;
-            
-            let footerStartY;
-            if (summaryEndY + footerHeight > pageHeight - 25) {
-                doc.addPage();
-                footerStartY = 30;
-            } else {
-                footerStartY = summaryEndY + 15;
-            }
-            
-            // Professional Footer Section
-            // Top border line
-            doc.setDrawColor(59, 130, 246);
-            doc.setLineWidth(1);
-            doc.line(20, footerStartY, 190, footerStartY);
-            
-            // Footer background (subtle)
-            doc.setFillColor(248, 250, 252);
-            doc.rect(20, footerStartY + 1, 170, 35, 'F');
-            
-            // Three-column professional layout
-            const leftCol = 25;
-            const centerCol = 85;
-            const rightCol = 145;
-            
-            // Left Column - Developer Info
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(30, 41, 59);
-            doc.text('DEVELOPED BY', leftCol, footerStartY + 10);
-            
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(7);
-            doc.setTextColor(59, 130, 246);
-            doc.text('Siddharth Harsh Raj', leftCol, footerStartY + 16);
-            
-            doc.setFontSize(6);
-            doc.setTextColor(100, 116, 139);
-            doc.text('Full Stack Developer', leftCol, footerStartY + 21);
-            doc.text(new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }), leftCol, footerStartY + 26);
-            
-            // Center Column - Technology Stack
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(30, 41, 59);
-            doc.text('TECHNOLOGY', centerCol, footerStartY + 10);
-            
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(6);
-            doc.setTextColor(100, 116, 139);
-            doc.text('React.js • Node.js', centerCol, footerStartY + 16);
-            doc.text('MongoDB • Express.js', centerCol, footerStartY + 20);
-            doc.text('JWT • Tailwind CSS', centerCol, footerStartY + 24);
-            doc.text('Socket.io • jsPDF', centerCol, footerStartY + 28);
-            
-            // Right Column - Contact Information
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(30, 41, 59);
-            doc.text('CONNECT', rightCol, footerStartY + 10);
-            
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(6);
-            doc.setTextColor(59, 130, 246);
-            
-            // Professional contact links with proper spacing
-            doc.textWithLink('LinkedIn Profile', rightCol, footerStartY + 16, { 
-                url: 'https://www.linkedin.com/in/siddharthharshraj/' 
-            });
-            
-            doc.textWithLink('Portfolio Website', rightCol, footerStartY + 20, { 
-                url: 'https://siddharth-dev.tech' 
-            });
-            
-            doc.textWithLink('contact@siddharth-dev.tech', rightCol, footerStartY + 24, { 
-                url: 'mailto:contact@siddharth-dev.tech' 
-            });
-            
-            // Bottom border and copyright
-            doc.setDrawColor(226, 232, 240);
-            doc.setLineWidth(0.5);
-            doc.line(20, footerStartY + 32, 190, footerStartY + 32);
-            
-            // Centered copyright and security notice
-            doc.setFontSize(5);
-            doc.setTextColor(148, 163, 184);
-            doc.setFont("helvetica", "normal");
-            
-            const copyrightText = `© ${new Date().getFullYear()} Siddharth Harsh Raj. All rights reserved. | Computer-generated statement - No signature required.`;
-            const textWidth = doc.getTextWidth(copyrightText);
-            const centerX = (doc.internal.pageSize.width - textWidth) / 2;
-            doc.text(copyrightText, centerX, footerStartY + 36);
-            
-            // Page numbering with professional styling
-            const pageCount = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= pageCount; i++) {
-                doc.setPage(i);
-                doc.setFontSize(6);
-                doc.setTextColor(148, 163, 184);
-                doc.setFont("helvetica", "normal");
-                
-                doc.text(`Page ${i} of ${pageCount}`, 20, pageHeight - 10);
-                
-                const genText = `Generated on ${new Date().toLocaleDateString('en-IN')} at ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
-                const genTextWidth = doc.getTextWidth(genText);
-                doc.text(genText, doc.internal.pageSize.width - genTextWidth - 20, pageHeight - 10);
-            }
-
-            const fileName = `QuickPe_Statement_${userInfo.firstName}_${new Date().toISOString().split('T')[0]}.pdf`;
-            doc.save(fileName);
+            // PDF generation is now handled by PDFStatement component
+            console.log('PDF generation completed using React-PDF');
 
         } catch (error) {
             console.error('Error generating PDF:', error);
@@ -506,6 +280,70 @@ export const TransactionHistory = () => {
         );
     }
 
+    // For Recent Activity (limit=3), show simplified view without filters
+    if (limit === 3) {
+        return (
+            <div className="space-y-4">
+                {loading ? (
+                    <SkeletonLoader />
+                ) : transactions.length === 0 ? (
+                    <div className="text-center py-8">
+                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <h3 className="mt-2 text-lg font-medium text-gray-900">No transactions</h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                            Get started by making your first transaction.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {transactions.slice(0, 3).map((transaction) => (
+                            <div key={transaction._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                    <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
+                                        transaction.type === 'credit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                                    }`}>
+                                        {transaction.type === 'credit' ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-900">
+                                            {transaction.otherUser?.name || 'Unknown User'}
+                                        </div>
+                                        <div className="text-sm text-gray-500">
+                                            {transaction.type === 'credit' 
+                                                ? `Received from ${transaction.otherUser?.name || 'Unknown User'}`
+                                                : `Transfer to ${transaction.otherUser?.name || 'Unknown User'}`
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className={`text-sm font-medium ${
+                                        transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                                    }`}>
+                                        {transaction.type === 'credit' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        {formatDate(transaction.timestamp, true)}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             {/* Toast Notification */}
@@ -522,28 +360,11 @@ export const TransactionHistory = () => {
                     </p>
                 </div>
                 <div className="flex items-center space-x-2">
-                    <button
-                        onClick={downloadPDFStatement}
-                        disabled={downloadingPDF}
-                        className="inline-flex items-center px-3 py-1.5 border border-green-300 shadow-sm text-sm leading-4 font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {downloadingPDF ? (
-                            <>
-                                <svg className="animate-spin -ml-0.5 mr-1.5 h-4 w-4 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Generating...
-                            </>
-                        ) : (
-                            <>
-                                <svg className="-ml-0.5 mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                Download Statement
-                            </>
-                        )}
-                    </button>
+                    <PDFStatement
+                        userInfo={JSON.parse(localStorage.getItem('user') || '{}')}
+                        currentBalance={0}
+                        transactions={transactions}
+                    />
                     <button
                         onClick={fetchTransactions}
                         className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -676,9 +497,9 @@ export const TransactionHistory = () => {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
-                                                    transaction.type === 'received' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                                                    transaction.type === 'credit' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
                                                 }`}>
-                                                    {transaction.type === 'received' ? (
+                                                    {transaction.type === 'credit' ? (
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                                             <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                                                         </svg>
@@ -696,7 +517,7 @@ export const TransactionHistory = () => {
                                                         </span>
                                                     </div>
                                                     <div className="text-sm text-gray-500">
-                                                        {transaction.type === 'received' 
+                                                        {transaction.type === 'credit' 
                                                             ? `Received from ${transaction.otherUser?.name || 'Unknown User'}`
                                                             : `Transfer to ${transaction.otherUser?.name || 'Unknown User'}`
                                                         }
@@ -720,20 +541,22 @@ export const TransactionHistory = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ${
-                                                transaction.type === 'received' 
+                                                transaction.type === 'credit' 
                                                     ? 'bg-green-100 text-green-800' 
-                                                    : 'bg-blue-100 text-blue-800'
+                                                    : 'bg-red-100 text-red-800'
                                             }`}>
-                                                {transaction.type === 'received' ? (
+                                                {transaction.type === 'credit' ? (
                                                     <svg className="-ml-0.5 mr-1.5 h-3 w-3 text-green-500" fill="currentColor" viewBox="0 0 8 8">
                                                         <path d="M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z" />
                                                     </svg>
                                                 ) : (
-                                                    <svg className="-ml-0.5 mr-1.5 h-3 w-3 text-blue-500" fill="currentColor" viewBox="0 0 8 8">
+                                                    <svg className="-ml-0.5 mr-1.5 h-3 w-3 text-red-500" fill="currentColor" viewBox="0 0 8 8">
                                                         <path d="M4 0L0 4h3v4h2V4h3L4 0z" />
                                                     </svg>
                                                 )}
-                                                {transaction.type === 'received' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                                <span className={transaction.type === 'credit' ? 'text-green-700' : 'text-red-700'}>
+                                                    {transaction.type === 'credit' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+                                                </span>
                                             </span>
                                         </td>
                                         <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
@@ -841,3 +664,4 @@ export const TransactionHistory = () => {
         </div>
     );
 };
+export default TransactionHistory;

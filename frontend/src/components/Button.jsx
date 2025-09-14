@@ -21,4 +21,4 @@ export const Button = ({label, onClick, disabled = false, variant = "primary", c
             {label}
         </button>
     );
-}
+}; export default Button;

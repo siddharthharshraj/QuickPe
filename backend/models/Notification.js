@@ -1,52 +1,48 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: true,
+        index: true
     },
     type: {
         type: String,
-        enum: ['money_received'],
+        enum: ['TRANSFER_SENT', 'TRANSFER_RECEIVED', 'BALANCE_LOW', 'SECURITY_ALERT', 'SYSTEM_UPDATE', 'MONEY_ADDED'],
         required: true
+    },
+    title: {
+        type: String,
+        required: true,
+        maxlength: 100
     },
     message: {
         type: String,
-        required: true
+        required: true,
+        maxlength: 500
     },
-    amount: {
-        type: Number,
-        required: true
-    },
-    fromUser: {
-        type: String,
-        required: true
-    },
-    fromUserId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
-    transactionId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Transaction',
-        required: true
+    data: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
     },
     read: {
         type: Boolean,
-        default: false
+        default: false,
+        index: true
     },
-    createdAt: {
-        type: Date,
-        default: Date.now
+    readAt: {
+        type: Date
+    },
+    transactionId: {
+        type: String
     }
+}, {
+    timestamps: true
 });
 
-// Index for faster queries
+// Index for efficient queries
 notificationSchema.index({ userId: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, read: 1 });
 
-const Notification = mongoose.model('Notification', notificationSchema);
-
-export { Notification };
+module.exports = mongoose.model('Notification', notificationSchema);

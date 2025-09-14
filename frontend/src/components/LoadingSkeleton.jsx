@@ -78,3 +78,4 @@ export const SendingAnimation = () => {
         </div>
     );
 };
+export default LoadingSkeleton;

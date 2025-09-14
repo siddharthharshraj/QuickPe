@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Header } from '../components/Header';
+import { Footer } from '../components/Footer';
 
 const NotFound = () => {
   const navigate = useNavigate();
@@ -24,8 +26,10 @@ const NotFound = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full text-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col">
+      <Header />
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="max-w-md w-full text-center">
         {/* 404 Animation */}
         <div className="relative mb-8">
           <div className="text-8xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 animate-pulse">
@@ -88,7 +92,9 @@ const NotFound = () => {
             Return to <span className="font-semibold text-blue-600">QuickPe</span> - Your Digital Wallet
           </p>
         </div>
+        </div>
       </div>
+      <Footer />
     </div>
   );
 };

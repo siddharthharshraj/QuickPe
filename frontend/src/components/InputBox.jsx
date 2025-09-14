@@ -36,4 +36,4 @@ export const InputBox = ({label, placeholder, onChange, type = "text", error, re
         </p>
       )}
     </div>
-}
+}; export default InputBox;

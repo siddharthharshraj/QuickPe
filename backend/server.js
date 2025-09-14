@@ -1,30 +1,47 @@
-import express from 'express';
-import mongoose from 'mongoose';
-import cors from 'cors';
-import helmet from 'helmet';
-import compression from 'compression';
-import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const { connectDB } = require('./services/db');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const dotenv = require('dotenv');
+const jwt = require('jsonwebtoken');
+const { logSocketEvent, logError } = require('./utils/logger');
+const userRoutes = require('./routes/user');
+const accountRoutes = require('./routes/account');
+const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
+const analyticsRoutes = require('./routes/analytics');
+const analyticsComprehensiveRoutes = require('./routes/analytics-comprehensive');
+const contactRoutes = require('./routes/contact');
+const aiAssistantRoutes = require('./routes/ai-assistant');
 
 // Load environment variables
 dotenv.config();
 
-// Import routes
-import rootRouter from './routes/index.js';
-import notificationRouter from './routes/notification.js';
-import contactRouter from './routes/contact.js';
-import testResultsRouter from './routes/test-results.js';
-import { connectDB } from './db.js';
-import { errorHandler } from './middleware/errorHandler.js';
-
 const app = express();
-const PORT = process.env.PORT || 5000;
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:5174", 
+      "http://localhost:5175",
+      "http://localhost:5176",
+      "http://localhost:3000",
+      "https://quickpe-frontend.vercel.app",
+      process.env.FRONTEND_URL
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+const PORT = process.env.PORT || 5001;
 
 // Security middleware
 app.use(helmet({
@@ -42,27 +59,52 @@ app.use(helmet({
 // Compression middleware
 app.use(compression());
 
-// CORS configuration for Railway deployment
+// CORS configuration for Render/Vercel deployment
 const corsOptions = {
   origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    process.env.FRONTEND_URL,
-    /\.railway\.app$/
-  ].filter(Boolean),
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174", 
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "https://quickpe-frontend.vercel.app",
+    process.env.FRONTEND_URL
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'Pragma',
+    'Expires'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 };
 
 app.use(cors(corsOptions));
 
-// Rate limiting
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
+// Rate limiting - more lenient for development
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 1000, // limit each IP to 1000 requests per minute
   message: {
     error: 'Too many requests from this IP, please try again later.'
+  },
+  skip: (req) => {
+    // Skip rate limiting for auth and account endpoints in development
+    if (process.env.NODE_ENV !== 'production' && 
+        (req.path.includes('/auth/') || req.path.includes('/account/'))) {
+      return true;
+    }
+    return false;
   }
 });
 app.use('/api/', limiter);
@@ -72,10 +114,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API Routes
-app.use("/api/v1", rootRouter);
-app.use("/api/v1/notifications", notificationRouter);
-app.use("/api/v1/contact", contactRouter);
-app.use("/api/v1/test-results", testResultsRouter);
+app.use('/api/v1/auth', require('./routes/auth'));
+app.use('/api/v1/account', require('./routes/account'));
+app.use('/api/v1/admin', require('./routes/admin'));
+app.use('/api/v1/analytics', require('./routes/analytics'));
+app.use('/api/v1/analytics-comprehensive', require('./routes/analytics-comprehensive'));
+app.use('/api/v1/ai-assistant', aiAssistantRoutes);
+app.use('/api/v1/notifications', require('./routes/notifications'));
+app.use('/api/v1/audit', require('./routes/audit'));
+app.use('/api/v1/user', require('./routes/user'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -107,18 +154,13 @@ app.use('*', (req, res) => {
 });
 
 // Error handling middleware
-app.use(errorHandler);
-
-// Global error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
-  
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  res.status(err.status || 500).json({
-    error: isDevelopment ? err.message : 'Something went wrong!',
-    ...(isDevelopment && { stack: err.stack })
-  });
+    console.error(err.stack);
+    res.status(500).json({
+        success: false,
+        message: 'Something went wrong!',
+        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
 });
 
 // Connect to MongoDB and start server
@@ -128,12 +170,127 @@ async function startServer() {
     await connectDB();
     console.log('✅ Connected to MongoDB');
     
+    // Socket.IO connection handling with enhanced logging and JWT authentication
+    io.on('connection', (socket) => {
+      logSocketEvent('connection', socket.id, null, { connectedAt: new Date().toISOString() });
+      
+      // Track connection metadata
+      socket.connectedAt = new Date().toISOString();
+      socket.isAuthenticated = false;
+      
+      // Handle user joining their room with JWT validation
+      socket.on('join', (userId, callback) => {
+        logSocketEvent('join_attempt', socket.id, userId);
+        
+        // Validate userId format
+        if (!userId || typeof userId !== 'string') {
+          logSocketEvent('join_failed', socket.id, userId, { error: 'Invalid user ID format' });
+          if (callback) callback({ success: false, error: 'Invalid user ID format' });
+          return;
+        }
+        
+        // Additional security: Validate JWT token if provided in handshake
+        const token = socket.handshake.auth?.token;
+        if (token) {
+          try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            if (decoded.userId !== userId) {
+              logSocketEvent('join_failed', socket.id, userId, { error: 'User ID mismatch with JWT token' });
+              if (callback) callback({ success: false, error: 'Authentication failed' });
+              return;
+            }
+            socket.jwtValidated = true;
+            logSocketEvent('jwt_validated', socket.id, userId, { tokenValid: true });
+          } catch (error) {
+            logSocketEvent('jwt_validation_failed', socket.id, userId, { error: error.message });
+            // Continue without JWT validation for backward compatibility
+            socket.jwtValidated = false;
+          }
+        }
+        
+        // Store user info and join room
+        socket.userId = userId;
+        socket.isAuthenticated = true;
+        socket.join(`user_${userId}`);
+        
+        logSocketEvent('join_success', socket.id, userId, { 
+          room: `user_${userId}`, 
+          jwtValidated: socket.jwtValidated || false 
+        });
+        
+        // Send acknowledgement
+        if (callback) {
+          callback({ 
+            success: true, 
+            data: { 
+              userId, 
+              room: `user_${userId}`, 
+              socketId: socket.id,
+              timestamp: new Date().toISOString(),
+              authenticated: socket.jwtValidated || false
+            } 
+          });
+        }
+      });
+      
+      // Handle heartbeat for connection health
+      socket.on('heartbeat', (data, callback) => {
+        socket.lastHeartbeat = new Date().toISOString();
+        logSocketEvent('heartbeat', socket.id, socket.userId, { clientTime: data?.timestamp });
+        
+        if (callback) {
+          callback({ 
+            received: true, 
+            serverTime: socket.lastHeartbeat,
+            clientTime: data?.timestamp
+          });
+        }
+      });
+      
+      // Handle explicit logout with security cleanup
+      socket.on('logout', (callback) => {
+        logSocketEvent('logout', socket.id, socket.userId);
+        
+        if (socket.userId) {
+          socket.leave(`user_${socket.userId}`);
+          logSocketEvent('room_left', socket.id, socket.userId, { room: `user_${socket.userId}` });
+          
+          // Security cleanup
+          socket.isAuthenticated = false;
+          socket.jwtValidated = false;
+          socket.userId = null;
+        }
+        
+        if (callback) {
+          callback({ success: true });
+        }
+      });
+      
+      // Handle disconnection
+      socket.on('disconnect', (reason) => {
+        logSocketEvent('disconnect', socket.id, socket.userId, { reason });
+        
+        // Clean up user room if they were authenticated
+        if (socket.userId) {
+          socket.leave(`user_${socket.userId}`);
+          logSocketEvent('cleanup', socket.id, socket.userId, { room: `user_${socket.userId}` });
+        }
+      });
+      
+      // Handle socket errors
+      socket.on('error', (error) => {
+        logError(error, { category: 'socket', socketId: socket.id, userId: socket.userId });
+      });
+    });
+    
+    // Make io available globally for other modules
+    app.set('io', io);
+    
     // Start the server
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 QuickPe Backend running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-      console.log(`🚂 Deployment: Railway`);
     });
     
     // Handle MongoDB connection errors after initial connection

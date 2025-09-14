@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+const jwt = require('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -14,6 +14,8 @@ const authMiddleware = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.userId = decoded.userId;
+        req.userRole = decoded.role;
+        req.isAdmin = decoded.isAdmin;
         next();
     } catch (err) {
         return res.status(403).json({
@@ -22,4 +24,13 @@ const authMiddleware = (req, res, next) => {
     }
 };
 
-export { authMiddleware };
+const adminMiddleware = (req, res, next) => {
+    if (!req.isAdmin) {
+        return res.status(403).json({
+            message: "Admin access required"
+        });
+    }
+    next();
+};
+
+module.exports = { authMiddleware, adminMiddleware };

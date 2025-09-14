@@ -53,3 +53,4 @@ export const ConfirmationModal = ({ isOpen, onClose, onConfirm, transaction, loa
         </div>
     );
 };
+export default ConfirmationModal;

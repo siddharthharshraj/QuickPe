@@ -29,14 +29,13 @@ const createTransporter = async () => {
 // Contact form endpoint
 router.post('/', async (req, res) => {
     try {
-        const { name, email, subject, message } = req.body;
-
+        const { name, email, message } = req.body;
 
         // Validate required fields
-        if (!name || !email || !subject || !message) {
+        if (!name || !email || !message) {
             return res.status(400).json({
                 success: false,
-                message: 'All fields are required'
+                message: 'Name, email, and message are required'
             });
         }
 
@@ -175,10 +174,6 @@ router.post('/', async (req, res) => {
                         <div class="field-value">${email}</div>
                     </div>
                     
-                    <div class="field">
-                        <div class="field-label">Subject</div>
-                        <div class="field-value">${subject}</div>
-                    </div>
                     
                     <div class="field message-field">
                         <div class="field-label">Message</div>
@@ -219,7 +214,6 @@ New contact form submission from QuickPe website:
 
 Visitor: ${name}
 Reply Email: ${email}
-Subject: ${subject}
 
 Message:
 ${message}

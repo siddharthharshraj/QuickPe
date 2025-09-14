@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QuickPe Login Test</title>
+</head>
+<body>
+    <h1>QuickPe Login Test</h1>
+    <button onclick="login()">Login and Set Token</button>
+    <button onclick="checkToken()">Check Current Token</button>
+    <button onclick="clearToken()">Clear Token</button>
+    <div id="result"></div>
+
+    <script>
+        async function login() {
+            try {
+                const response = await fetch('http://localhost:5001/api/v1/auth/signin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'siddharth@quickpe.com',
+                        password: 'password123'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('userId', data.user.id);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    document.getElementById('result').innerHTML = `
+                        <p style="color: green;">Login successful!</p>
+                        <p>Token: ${data.token.substring(0, 50)}...</p>
+                        <p>User ID: ${data.user.id}</p>
+                        <p>Balance: ₹${data.user.balance}</p>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = `<p style="color: red;">Login failed: ${data.message}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function checkToken() {
+            const token = localStorage.getItem('token');
+            const userId = localStorage.getItem('userId');
+            
+            document.getElementById('result').innerHTML = `
+                <p>Token: ${token ? token.substring(0, 50) + '...' : 'Not found'}</p>
+                <p>User ID: ${userId || 'Not found'}</p>
+            `;
+        }
+
+        function clearToken() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('user');
+            document.getElementById('result').innerHTML = '<p>Tokens cleared</p>';
+        }
+    </script>
+</body>
+</html>

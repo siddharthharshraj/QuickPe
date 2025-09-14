@@ -3,3 +3,4 @@ export function SubHeading({label}) {
     {label}
   </div>
 }
+export default SubHeading;

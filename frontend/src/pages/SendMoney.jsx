@@ -1,5 +1,5 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import apiClient from "../api/client";
+import apiClient from "../services/api/client";
 import { useState } from 'react';
 import { Button } from '../components/Button';
 import { ConfirmationModal } from '../components/ConfirmationModal';
@@ -11,6 +11,7 @@ export const SendMoney = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const id = searchParams.get("to");
+    const quickpeId = searchParams.get("quickpeId");
     const name = searchParams.get("name");
     const [amount, setAmount] = useState('');
     const [loading, setLoading] = useState(false);
@@ -49,7 +50,7 @@ export const SendMoney = () => {
         
         try {
             const response = await apiClient.post("/account/transfer", {
-                to: id,
+                toQuickpeId: quickpeId,
                 amount: parseFloat(amount)
             });
             
@@ -159,7 +160,7 @@ export const SendMoney = () => {
                                 <div className="pt-4 space-y-3">
                                     <button
                                         onClick={handleInitiateTransfer}
-                                        disabled={loading || !amount || !id || showSending}
+                                        disabled={loading || !amount || !quickpeId || showSending}
                                         className="w-full py-3 px-4 bg-blue-600 text-white font-semibold text-lg rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
                                     >
                                         {showSending ? "Sending..." : "Send Money"}
@@ -208,4 +209,6 @@ export const SendMoney = () => {
             )}
         </div>
     );
-}
+};
+
+export default SendMoney;

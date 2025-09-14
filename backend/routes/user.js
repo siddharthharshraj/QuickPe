@@ -1,10 +1,11 @@
-import express from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import zod from 'zod';
-import { User, Account } from '../db.js';
-import { authMiddleware } from '../middleware/index.js';
-import dotenv from 'dotenv';
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const zod = require('zod');
+const User = require('../models/User');
+const Account = require('../models/Account');
+const { authMiddleware } = require('../middleware/index');
+const dotenv = require('dotenv');
 
 dotenv.config();
 
@@ -40,11 +41,28 @@ router.post("/signup", async (req, res) => {
         const saltRounds = 12;
         const hashedPassword = await bcrypt.hash(req.body.password, saltRounds);
 
+        // Generate unique QuickPe ID
+        const generateQuickPeId = () => {
+            const randomNum = Math.floor(100000 + Math.random() * 900000);
+            return `QP${randomNum}`;
+        };
+
+        let quickpeId;
+        let isUnique = false;
+        while (!isUnique) {
+            quickpeId = generateQuickPeId();
+            const existingQuickPeId = await User.findOne({ quickpeId });
+            if (!existingQuickPeId) {
+                isUnique = true;
+            }
+        }
+
         const user = await User.create({
             username: req.body.username,
             password: hashedPassword,
             firstName: req.body.firstName,
             lastName: req.body.lastName,
+            quickpeId: quickpeId,
         });
         
         const userId = user._id;
@@ -59,7 +77,8 @@ router.post("/signup", async (req, res) => {
             userId: user._id,
             firstName: user.firstName,
             lastName: user.lastName,
-            username: user.username
+            username: user.username,
+            quickpeId: user.quickpeId
         }, process.env.JWT_SECRET);
 
         res.json({
@@ -82,36 +101,46 @@ const signinBody = zod.object({
 })
 
 router.post("/signin", async (req, res) => {
-    const { success } = signinBody.safeParse(req.body)
-    if (!success) {
-        return res.status(411).json({
-            message: "Email already taken / Incorrect inputs"
+    try {
+        const { success } = signinBody.safeParse(req.body)
+        if (!success) {
+            return res.status(411).json({
+                message: "Email already taken / Incorrect inputs"
+            })
+        }
+
+        const existingUser = await User.findOne({
+            username: req.body.username
+        });
+
+        if (existingUser && await bcrypt.compare(req.body.password, existingUser.password)) {
+            const token = jwt.sign({
+                userId: existingUser._id,
+                firstName: existingUser.firstName,
+                lastName: existingUser.lastName,
+                username: existingUser.username,
+                quickpeId: existingUser.quickpeId
+            }, process.env.JWT_SECRET);
+
+            res.json({
+                token: token
+            })
+            return;
+        }
+
+        res.status(411).json({
+            message: "Error while logging in"
         })
+    } catch (error) {
+        console.error("Signin error:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
     }
-
-    const existingUser = await User.findOne({
-        username: req.body.username
-    });
-
-    if (existingUser && await bcrypt.compare(req.body.password, existingUser.password)) {
-        const token = jwt.sign({
-            userId: existingUser._id,
-            firstName: existingUser.firstName,
-            lastName: existingUser.lastName,
-            username: existingUser.username
-        }, process.env.JWT_SECRET);
-
-        res.json({
-            token: token
-        })
-        return;
-    }
-
-    
-    res.status(411).json({
-        message: "Error while logging in"
-    })
 })
+
+// Removed duplicate profile route - using the updated one below
 
 const updateBody = zod.object({
     password: zod.string().optional(),
@@ -151,12 +180,13 @@ router.get("/bulk", authMiddleware, async (req, res) => {
             query.$or = [
                 { firstName: { $regex: filter, $options: 'i' } },
                 { lastName: { $regex: filter, $options: 'i' } },
-                { username: { $regex: filter, $options: 'i' } }
+                { username: { $regex: filter, $options: 'i' } },
+                { quickpeId: { $regex: filter, $options: 'i' } }
             ];
         }
 
         
-        const users = await User.find(query, 'username firstName lastName _id')
+        const users = await User.find(query, 'username firstName lastName _id quickpeId')
             .sort({ firstName: 1 });
 
         
@@ -165,7 +195,8 @@ router.get("/bulk", authMiddleware, async (req, res) => {
                 _id: user._id,
                 username: user.username,
                 firstName: user.firstName,
-                lastName: user.lastName
+                lastName: user.lastName,
+                quickpeId: user.quickpeId
             }))
         });
         
@@ -183,7 +214,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
     try {
         const userId = req.userId;
         
-        const user = await User.findById(userId, 'firstName lastName username _id');
+        const user = await User.findById(userId, 'firstName lastName username email _id quickpeId settingsEnabled createdAt updatedAt');
         if (!user) {
             return res.status(404).json({
                 message: "User not found"
@@ -191,7 +222,17 @@ router.get('/profile', authMiddleware, async (req, res) => {
         }
 
         res.json({
-            user: user
+            user: {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                username: user.username,
+                email: user.email,
+                quickpeId: user.quickpeId,
+                settingsEnabled: user.settingsEnabled !== false,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt
+            }
         });
 
     } catch (error) {
@@ -301,4 +342,4 @@ router.put('/change-password', authMiddleware, async (req, res) => {
     }
 });
 
-export default router;
+module.exports = router;

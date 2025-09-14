@@ -1,0 +1,31 @@
+{
+  "name": "quickpe-tests",
+  "version": "1.0.0",
+  "description": "Comprehensive test suite for QuickPe",
+  "type": "module",
+  "scripts": {
+    "test": "vitest",
+    "test:unit": "vitest run unit/",
+    "test:integration": "vitest run integration/",
+    "test:e2e": "playwright test",
+    "test:load": "echo 'Install k6 separately: brew install k6 or https://k6.io/docs/get-started/installation/' && k6 run load/comprehensive-load-test.js",
+    "test:load:local": "BASE_URL=http://localhost:3001 k6 run load/comprehensive-load-test.js",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "mongodb-memory-server": "^9.1.0",
+    "supertest": "^6.3.0",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.12.1",
+    "bcryptjs": "^2.4.0",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^8.0.0",
+    "socket.io-client": "^4.8.1"
+  }
+}

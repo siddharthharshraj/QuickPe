@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { io } from 'socket.io-client';
-import axios from 'axios';
+import apiClient from '../api/client.js';
 
 export const Appbar = () => {
     const navigate = useNavigate();
@@ -23,17 +23,17 @@ export const Appbar = () => {
                 // Fetch initial notifications
                 const fetchNotifications = async () => {
                     try {
-                        const response = await axios.get('/v1/notifications', {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
+                        const response = await apiClient.get('/notifications');
                         
-                        setNotifications(response.data);
+                        // Ensure we always have an array
+                        const notificationsData = response.data?.notifications || response.data || [];
+                        const notificationsArray = Array.isArray(notificationsData) ? notificationsData : [];
+                        setNotifications(notificationsArray);
                         
                         // Count unread notifications
-                        const unread = response.data.filter(n => !n.read).length;
+                        const unread = notificationsArray.filter(n => !n.read).length;
                         setUnreadCount(unread);
+                        console.log('📊 Notifications loaded:', notificationsArray.length, 'unread:', unread);
                     } catch (error) {
                     }
                 };
@@ -41,7 +41,8 @@ export const Appbar = () => {
                 fetchNotifications();
                 
                 // Set up socket connection for real-time updates
-                const socket = io('/', {
+                const socket = io('http://localhost:5001', {
+                    transports: ['websocket', 'polling'],
                     auth: {
                         token: token
                     }
@@ -54,12 +55,13 @@ export const Appbar = () => {
 
                 // Listen for new notifications
                 socket.on('notification:new', (data) => {
+                    console.log('🔔 Received notification in Appbar:', data);
                     setNotifications(prev => [data, ...prev]);
                     setUnreadCount(prev => prev + 1);
                     
                     // Show browser notification
                     if (Notification.permission === 'granted') {
-                        new Notification('💰 Money Received!', {
+                        new Notification(data.title || '💰 Money Received!', {
                             body: data.message,
                             icon: '/favicon.ico',
                             tag: 'quickpe-notification'
@@ -70,7 +72,7 @@ export const Appbar = () => {
                 // Listen for read-all events
                 socket.on('notifications:read-all', () => {
                     setNotifications(prev => 
-                        prev.map(n => ({ ...n, read: true }))
+                        Array.isArray(prev) ? prev.map(n => ({ ...n, read: true })) : []
                     );
                     setUnreadCount(0);
                 });
@@ -103,17 +105,23 @@ export const Appbar = () => {
         navigate("/signin");
     };
 
+    const markAllAsRead = async () => {
+        try {
+            await apiClient.post('/notifications/mark-all-read');
+            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            setUnreadCount(0);
+        } catch (error) {
+            console.error('Error marking all notifications as read:', error);
+        }
+    };
+
     const markNotificationsAsRead = async () => {
         try {
             const token = localStorage.getItem("token");
             
-            await axios.put('/v1/notifications?action=read-all', {}, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            await apiClient.put('/notifications/mark-read');
             
-            setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
+            setNotifications(prev => Array.isArray(prev) ? prev.map(notif => ({ ...notif, read: true })) : []);
             setUnreadCount(0);
         } catch (error) {
             console.error('❌ Error marking notifications as read:', error);
@@ -189,7 +197,7 @@ export const Appbar = () => {
                     </svg>
                     {/* Notification count badge */}
                     {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium animate-pulse">
                             {unreadCount > 9 ? '9+' : unreadCount}
                         </span>
                     )}
@@ -198,8 +206,16 @@ export const Appbar = () => {
                 {/* Notification Dropdown */}
                 {isNotificationOpen && (
                     <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-96 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                    <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                         <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                        {notifications.length > 0 && (
+                            <button
+                                onClick={markAllAsRead}
+                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                                Mark all as read
+                            </button>
+                        )}
                     </div>
                     
                     <div className="max-h-80 overflow-y-auto">
@@ -215,7 +231,7 @@ export const Appbar = () => {
                                 <div 
                                     key={notification._id} 
                                     className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200 ${
-                                        !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                                        !notification.read ? 'bg-emerald-50 border-l-4 border-l-emerald-500 animate-pulse' : ''
                                     }`}
                                 >
                                     <div className="flex items-start space-x-3">
@@ -239,7 +255,7 @@ export const Appbar = () => {
                                         </div>
                                         {!notification.read && (
                                             <div className="flex-shrink-0">
-                                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
                                             </div>
                                         )}
                                     </div>
@@ -251,11 +267,10 @@ export const Appbar = () => {
                     {notifications.length > 0 && (
                         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
                             <button 
-                                onClick={markNotificationsAsRead}
-                                className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
-                                disabled={unreadCount === 0}
+                                onClick={() => navigate('/audit-trail')}
+                                className="text-sm text-emerald-600 hover:text-emerald-800 font-medium transition-colors duration-200"
                             >
-                                {unreadCount > 0 ? 'Mark all as read' : 'All read'}
+                                Download Audit Trail
                             </button>
                             <span className="text-xs text-gray-500">
                                 {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
@@ -301,4 +316,4 @@ export const Appbar = () => {
             </div>
         </div>
     );
-};
+};export default Appbar;

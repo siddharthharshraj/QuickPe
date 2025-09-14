@@ -1,6 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import ReactFlow, { 
+    MiniMap, 
+    Controls, 
+    Background, 
+    useNodesState, 
+    useEdgesState 
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { Footer } from '../components/Footer';
+import QuickPeLogo from '../components/QuickPeLogo';
 
 const About = () => {
     const navigate = useNavigate();
@@ -12,6 +22,67 @@ const About = () => {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState('');
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        setIsAuthenticated(!!token);
+    }, []);
+
+    // React Flow nodes for architecture diagram
+    const initialNodes = [
+        {
+            id: '1',
+            type: 'input',
+            data: { label: 'User Interface (React)' },
+            position: { x: 250, y: 25 },
+            style: { background: '#10b981', color: 'white', border: '1px solid #059669' }
+        },
+        {
+            id: '2',
+            data: { label: 'Authentication (JWT)' },
+            position: { x: 100, y: 125 },
+            style: { background: '#3b82f6', color: 'white', border: '1px solid #2563eb' }
+        },
+        {
+            id: '3',
+            data: { label: 'API Gateway (Express)' },
+            position: { x: 250, y: 125 },
+            style: { background: '#8b5cf6', color: 'white', border: '1px solid #7c3aed' }
+        },
+        {
+            id: '4',
+            data: { label: 'Real-time (Socket.IO)' },
+            position: { x: 400, y: 125 },
+            style: { background: '#f59e0b', color: 'white', border: '1px solid #d97706' }
+        },
+        {
+            id: '5',
+            data: { label: 'Business Logic' },
+            position: { x: 250, y: 225 },
+            style: { background: '#ef4444', color: 'white', border: '1px solid #dc2626' }
+        },
+        {
+            id: '6',
+            type: 'output',
+            data: { label: 'MongoDB Database' },
+            position: { x: 250, y: 325 },
+            style: { background: '#059669', color: 'white', border: '1px solid #047857' }
+        }
+    ];
+
+    const initialEdges = [
+        { id: 'e1-2', source: '1', target: '2', animated: true },
+        { id: 'e1-3', source: '1', target: '3', animated: true },
+        { id: 'e1-4', source: '1', target: '4', animated: true },
+        { id: 'e2-5', source: '2', target: '5' },
+        { id: 'e3-5', source: '3', target: '5' },
+        { id: 'e4-5', source: '4', target: '5' },
+        { id: 'e5-6', source: '5', target: '6' }
+    ];
+
+    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
     const handleInputChange = (e) => {
         setContactForm({
@@ -95,49 +166,77 @@ const About = () => {
     return (
         <div className="min-h-screen bg-white">
             {/* Navigation Header */}
-            <nav className="bg-white shadow-sm border-b border-gray-200">
+            <nav className="bg-white/80 backdrop-blur-sm border-b border-emerald-100 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                                <span className="text-white font-bold text-lg">₹</span>
-                            </div>
-                            <span className="text-xl font-bold text-gray-900">QuickPe</span>
-                        </div>
-                        <div className="flex items-center space-x-4">
+                        <motion.div 
+                            className="flex items-center space-x-2 cursor-pointer"
+                            whileHover={{ scale: 1.05 }}
+                            onClick={() => navigate(isAuthenticated ? '/dashboard' : '/')}
+                        >
+                            <QuickPeLogo />
+                        </motion.div>
+                        <div className="flex items-center space-x-6">
                             <button
                                 onClick={() => navigate("/")}
-                                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                                className="text-slate-600 hover:text-emerald-600 font-medium transition-colors"
                             >
                                 Home
                             </button>
-                            <button
-                                onClick={() => navigate("/signin")}
-                                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                            <button 
+                                onClick={() => navigate('/kpi-reports')}
+                                className="text-slate-600 hover:text-emerald-600 font-medium transition-colors"
                             >
-                                Sign In
+                                KPI Reports
                             </button>
-                            <button
-                                onClick={() => navigate("/signup")}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                            >
-                                Get Started
-                            </button>
+                            {isAuthenticated ? (
+                                <button 
+                                    onClick={() => navigate('/dashboard')}
+                                    className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-2 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                                >
+                                    Dashboard
+                                </button>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={() => navigate("/signin")}
+                                        className="text-emerald-600 border border-emerald-600 px-6 py-2 rounded-lg font-medium hover:bg-emerald-50 transition-all duration-200"
+                                    >
+                                        Sign In
+                                    </button>
+                                    <button
+                                        onClick={() => navigate("/signup")}
+                                        className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-2 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                                    >
+                                        Sign Up
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
             </nav>
 
             {/* Hero Section */}
-            <section className="bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-20">
+            <section className="bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-                        About <span className="text-blue-600">QuickPe</span>
-                    </h1>
-                    <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-                        A modern digital wallet application built with the MERN stack, featuring real-time notifications, 
-                        secure transactions, and a beautiful user interface.
-                    </p>
+                    <motion.h1 
+                        className="text-4xl md:text-6xl font-bold text-slate-900 mb-6"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8 }}
+                    >
+                        About <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">QuickPe</span>
+                    </motion.h1>
+                    <motion.p 
+                        className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                    >
+                        A comprehensive digital wallet application built with the MERN stack, featuring real-time notifications, 
+                        secure transactions, advanced analytics, and a beautiful modern interface designed for the future of digital payments.
+                    </motion.p>
                 </div>
             </section>
 
@@ -161,42 +260,60 @@ const About = () => {
                 </div>
             </section>
 
-            {/* Project Flow */}
-            <section className="py-20 bg-gray-50">
+            {/* Architecture Diagram */}
+            <section className="py-20 bg-slate-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">Project Flow</h2>
-                        <p className="text-xl text-gray-600">How QuickPe works from user registration to money transfer</p>
+                        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">System Architecture</h2>
+                        <p className="text-xl text-slate-600">Interactive diagram showing QuickPe's technical architecture</p>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-xl p-8">
+                        <div style={{ width: '100%', height: '400px' }}>
+                            <ReactFlow
+                                nodes={nodes}
+                                edges={edges}
+                                onNodesChange={onNodesChange}
+                                onEdgesChange={onEdgesChange}
+                                fitView
+                            >
+                                <Controls />
+                                <MiniMap />
+                                <Background variant="dots" gap={12} size={1} />
+                            </ReactFlow>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Business Flow */}
+            <section className="py-20 bg-white">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">Business Flow</h2>
+                        <p className="text-xl text-slate-600">How QuickPe works from user registration to money transfer</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                        <div className="text-center">
-                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-2xl">👤</span>
-                            </div>
-                            <h3 className="text-lg font-semibold mb-2">1. User Registration</h3>
-                            <p className="text-gray-600">Sign up with email, name, and secure password</p>
-                        </div>
-                        <div className="text-center">
-                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-2xl">🔐</span>
-                            </div>
-                            <h3 className="text-lg font-semibold mb-2">2. Authentication</h3>
-                            <p className="text-gray-600">Secure login with JWT token-based authentication</p>
-                        </div>
-                        <div className="text-center">
-                            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-2xl">💰</span>
-                            </div>
-                            <h3 className="text-lg font-semibold mb-2">3. Money Transfer</h3>
-                            <p className="text-gray-600">Send money to other users with confirmation</p>
-                        </div>
-                        <div className="text-center">
-                            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-2xl">🔔</span>
-                            </div>
-                            <h3 className="text-lg font-semibold mb-2">4. Real-time Updates</h3>
-                            <p className="text-gray-600">Instant notifications via Socket.IO</p>
-                        </div>
+                        {[
+                            { icon: '👤', title: '1. User Registration', desc: 'Sign up with email, name, and secure password. Get unique QuickPe ID.' },
+                            { icon: '🔐', title: '2. Authentication', desc: 'Secure login with JWT tokens and session management.' },
+                            { icon: '💰', title: '3. Money Transfer', desc: 'Send money using QuickPe ID or email with real-time confirmation.' },
+                            { icon: '🔔', title: '4. Real-time Updates', desc: 'Instant notifications and balance updates via Socket.IO.' }
+                        ].map((step, index) => (
+                            <motion.div 
+                                key={index}
+                                className="text-center"
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6, delay: index * 0.2 }}
+                                viewport={{ once: true }}
+                            >
+                                <div className="w-16 h-16 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-2xl">{step.icon}</span>
+                                </div>
+                                <h3 className="text-lg font-semibold mb-2 text-slate-900">{step.title}</h3>
+                                <p className="text-slate-600">{step.desc}</p>
+                            </motion.div>
+                        ))}
                     </div>
                 </div>
             </section>

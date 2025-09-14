@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: quickpe-backend
+    env: node
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        value: mongodb+srv://username:password@cluster.mongodb.net/quickpe?retryWrites=true&w=majority&replicaSet=atlas-replica-set
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://quickpe-frontend.vercel.app
+      - key: PORT
+        value: 5001
+    healthCheckPath: /health
+    
+databases:
+  - name: quickpe-mongodb
+    plan: free
