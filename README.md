@@ -289,54 +289,285 @@ Email: adminsid@quickpe.com | Password: password123
 
 ---
 
-## 🌐 Deployment
+## 🚀 Quick Start Guide for Admin Functionality
 
-QuickPe is production-ready and deployed on Vercel with serverless architecture.
+### Prerequisites
+- Node.js (v18 or higher)
+- MongoDB (running locally on port 27017)
+- Git
 
-### Live Application
-🔗 **Production URL**: [https://quickpe.siddharth-dev.tech](https://quickpe.siddharth-dev.tech)
+### One-Command Setup
+```bash
+# Clone and setup the project
+git clone <repository-url>
+cd QuickPe
+node start-project.js
+```
 
-### 📊 Performance & KPI Monitoring
+This will:
+- Install all dependencies (frontend & backend)
+- Create environment configuration
+- Reset admin password
+- Set up the database
 
-QuickPe includes comprehensive testing, monitoring, and KPI reporting:
+### Manual Setup
+If you prefer manual setup:
 
-### **Testing & Performance**
-- **Load Testing**: Artillery.js for simulating 500+ concurrent users
-- **Stress Testing**: High-load scenario testing with real-time metrics
-- **Performance Monitoring**: Comprehensive KPI tracking with automated alerts
-- **Unit & Integration Tests**: Automated test suite with 90%+ coverage
+```bash
+# Install backend dependencies
+cd backend
+npm install
 
-### **KPI Reporting Tools**
-- **Vercel Analytics**: Real-time performance metrics and user analytics
-- **MongoDB Atlas Monitoring**: Database performance and query optimization
-- **Artillery Reports**: Load testing results with detailed performance graphs
-- **Custom KPI Dashboard**: Transaction volume, user growth, and system health metrics
-- **GitHub Actions Insights**: CI/CD pipeline performance and deployment success rates
+# Install frontend dependencies  
+cd ../frontend
+npm install
 
-### **Deployment Process**
-- **Automated CI/CD**: GitHub Actions pipeline with automated testing and deployment
-- **Serverless Architecture**: Vercel Edge Functions with auto-scaling capabilities
-- **Zero-Downtime Deployment**: Rolling updates with health checks and rollback capabilities
-- **Environment Management**: Secure environment variable management across dev/staging/prod
-- **Performance Optimization**: Automatic code splitting, minification, and CDN distributions via GitHub Actions
-- **Environment Management**: Secure environment variable management
+# Reset admin password
+cd ../backend
+node scripts/resetAdminPassword.js
+```
+
+### Starting the Application
+
+1. **Start MongoDB**
+   ```bash
+   mongod
+   ```
+
+2. **Start Backend** (Terminal 1)
+   ```bash
+   cd backend
+   npm run dev
+   ```
+
+3. **Start Frontend** (Terminal 2)
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+## 🔐 Admin Access
+
+**Admin Login Credentials:**
+- Email: `admin@quickpe.com`
+- Password: `admin@quickpe2025`
+
+**Admin Dashboard Features:**
+- User management (create, edit, delete, activate/deactivate)
+- Real-time system analytics and metrics
+- Transaction monitoring and reporting
+- System health monitoring
+- CSV export functionality
+- Top users and category analytics
 
 ---
 
-## 📊 Performance & Testing
+## 🌐 Application URLs
 
-### Performance Metrics
-- **Bundle Size**: < 500KB (gzipped)
-- **Load Time**: < 2 seconds
-- **Lighthouse Score**: 95+ (Performance, Accessibility, SEO)
-- **API Response**: < 200ms average
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:5001
+- **Admin Dashboard**: http://localhost:5173/admin
+- **API Health Check**: http://localhost:5001/health
 
-### Testing Suite
-```bash
-npm run test:performance    # Performance benchmarks
-npm run test:load          # Load testing with Artillery
-npm run test:stress        # Stress testing scenarios
-npm run test:monitoring    # System monitoring
+---
+
+## 🗄️ Database Schemas
+
+### 👤 User Schema
+```javascript
+const userSchema = {
+  firstName: String (required, max: 50)
+  lastName: String (required, max: 50)
+  email: String (required, unique, validated)
+  phone: String (optional, unique, validated)
+  username: String (optional, unique)
+  password: String (required, bcrypt hashed)
+  quickpeId: String (unique, auto-generated)
+  balance: Number (default: 0, min: 0)
+  isVerified: Boolean (default: false)
+  role: String (enum: ['user', 'admin'])
+  isAdmin: Boolean (default: false)
+  roles: Array (default: ['user'])
+  profilePicture: String (optional)
+  address: {
+    street: String
+    city: String
+    state: String
+    country: String (default: 'India')
+    zipCode: String
+  }
+  preferences: {
+    notifications: {
+      email: Boolean (default: true)
+      sms: Boolean (default: true)
+      push: Boolean (default: true)
+    }
+    privacy: {
+      showProfile: Boolean (default: true)
+      showTransactions: Boolean (default: false)
+    }
+  }
+  isActive: Boolean (default: true)
+  settingsEnabled: Boolean (default: true)
+  lastLogin: Date
+  createdAt: Date (auto)
+  updatedAt: Date (auto)
+}
+```
+
+### 💳 Transaction Schema
+```javascript
+const transactionSchema = {
+  transactionId: String (unique, auto-generated)
+  userId: ObjectId (ref: 'User', required)
+  userEmail: String
+  amount: Number (required, min: 0.01)
+  type: String (enum: ['credit', 'debit'])
+  status: String (enum: ['pending', 'completed', 'failed'])
+  description: String (required)
+  category: String (enum: ['Transfer', 'Add Money', 'Refund'])
+  recipientId: ObjectId (ref: 'User')
+  recipientQuickpeId: String
+  senderId: ObjectId (ref: 'User')
+  senderQuickpeId: String
+  metadata: {
+    ip: String
+    userAgent: String
+    location: String
+  }
+  createdAt: Date (auto)
+  updatedAt: Date (auto)
+}
+```
+
+### 🔔 Notification Schema
+```javascript
+const notificationSchema = {
+  userId: ObjectId (ref: 'User', required)
+  type: String (enum: ['TRANSFER_SENT', 'TRANSFER_RECEIVED', 'SYSTEM'])
+  title: String (required)
+  message: String (required)
+  data: {
+    transactionId: ObjectId
+    amount: Number
+    fromUser: String
+    toUser: String
+  }
+  read: Boolean (default: false)
+  priority: String (enum: ['low', 'medium', 'high'])
+  createdAt: Date (auto)
+  updatedAt: Date (auto)
+}
+```
+
+### 📋 Audit Log Schema
+```javascript
+const auditLogSchema = {
+  userId: ObjectId (ref: 'User', required)
+  action: String (required)
+  category: String (required)
+  resourceId: ObjectId
+  details: {
+    amount: Number
+    recipient: String
+    sender: String
+    oldValue: Mixed
+    newValue: Mixed
+  }
+  ipAddress: String
+  userAgent: String
+  timestamp: Date (auto)
+  sessionId: String
+}
+```
+
+---
+
+## 🔒 Security Features
+
+### 🛡️ Authentication & Authorization
+- **JWT Authentication**: Secure token-based authentication with refresh tokens
+- **Role-Based Access Control**: User and Admin role separation
+- **Session Management**: Secure session handling with expiration
+- **Password Security**: bcrypt hashing with 12+ salt rounds
+- **Account Lockout**: Brute force protection with rate limiting
+
+### 🔐 Data Protection
+- **Input Validation**: Comprehensive Zod schema validation
+- **SQL Injection Prevention**: Mongoose ODM with parameterized queries
+- **XSS Protection**: Input sanitization and output encoding
+- **CSRF Protection**: Cross-site request forgery prevention
+- **Data Encryption**: Sensitive data encryption at rest
+
+### 🌐 Network Security
+- **HTTPS Enforcement**: SSL/TLS encryption for all communications
+- **CORS Protection**: Configurable cross-origin request policies
+- **Rate Limiting**: API endpoint protection (100 requests/15 minutes)
+- **Helmet.js**: Security headers and vulnerability protection
+- **IP Whitelisting**: Admin panel IP restrictions
+
+### 📊 Security Monitoring
+- **Audit Logging**: Comprehensive activity tracking
+- **Anomaly Detection**: Unusual transaction pattern alerts
+- **Security Events**: Real-time security incident logging
+- **Compliance**: GDPR and financial regulation compliance ready
+
+---
+
+## 🔗 API Documentation
+
+### 🔐 Authentication Endpoints
+```
+POST /api/v1/auth/signin          # User login
+POST /api/v1/auth/signup          # User registration
+POST /api/v1/auth/logout          # User logout
+POST /api/v1/auth/refresh         # Refresh JWT token
+POST /api/v1/auth/forgot-password # Password reset request
+POST /api/v1/auth/reset-password  # Password reset confirmation
+```
+
+### 👤 User Management Endpoints
+```
+GET  /api/v1/user/profile         # Get user profile
+PUT  /api/v1/user/profile         # Update user profile
+PUT  /api/v1/user/password        # Change password
+GET  /api/v1/user/search          # Search users by QuickPe ID
+DELETE /api/v1/user/account       # Delete user account
+```
+
+### 💰 Account & Transaction Endpoints
+```
+GET  /api/v1/account/balance      # Get current balance
+POST /api/v1/account/transfer     # Send money to another user
+POST /api/v1/account/add-money    # Add money to account
+GET  /api/v1/account/transactions # Get transaction history
+GET  /api/v1/account/transaction/:id # Get specific transaction
+```
+
+### 🔔 Notification Endpoints
+```
+GET  /api/v1/notifications        # Get user notifications
+PUT  /api/v1/notifications/:id/read # Mark notification as read
+PUT  /api/v1/notifications/mark-all-read # Mark all as read
+DELETE /api/v1/notifications/:id  # Delete notification
+GET  /api/v1/notifications/unread-count # Get unread count
+```
+
+### 📊 Analytics Endpoints
+```
+GET  /api/v1/analytics/dashboard  # Get analytics dashboard data
+GET  /api/v1/analytics/spending   # Get spending analytics
+GET  /api/v1/analytics/trends     # Get transaction trends
+POST /api/v1/analytics/report     # Generate PDF report
+```
+
+### 👑 Admin Endpoints
+```
+GET  /api/v1/admin/users          # Get all users (admin only)
+GET  /api/v1/admin/transactions   # Get all transactions (admin only)
+GET  /api/v1/admin/analytics      # Get system analytics (admin only)
+PUT  /api/v1/admin/user/:id       # Update user (admin only)
+DELETE /api/v1/admin/user/:id     # Delete user (admin only)
 ```
 
 ---

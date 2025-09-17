@@ -81,6 +81,7 @@ export const Signin = () => {
                 quickpeId: response.data.user.quickpeId,
                 balance: response.data.user.balance,
                 role: response.data.user.role,
+                isAdmin: response.data.user.isAdmin,
                 lastLogin: new Date().toISOString()
             }));
             

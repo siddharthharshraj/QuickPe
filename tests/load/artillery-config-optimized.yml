@@ -1,0 +1,92 @@
+config:
+  target: 'http://localhost:5001'
+  phases:
+    - duration: 30
+      arrivalRate: 2
+      name: "Warm up"
+    - duration: 60
+      arrivalRate: 5
+      name: "Gradual ramp up"
+    - duration: 120
+      arrivalRate: 8
+      name: "Sustained load"
+    - duration: 60
+      arrivalRate: 12
+      name: "Peak load test"
+    - duration: 30
+      arrivalRate: 5
+      name: "Cool down"
+  payload:
+    path: "test-users.csv"
+    fields:
+      - "username"
+      - "password"
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+  http:
+    timeout: 10
+    pool: 50
+
+scenarios:
+  - name: "Authentication Flow"
+    weight: 40
+    flow:
+      - post:
+          url: "/api/v1/auth/signin"
+          json:
+            email: "{{ username }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      - think: 1
+      
+  - name: "Balance Check"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/v1/auth/signin"
+          json:
+            email: "arpit.shukla@quickpe.com"
+            password: "password123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      - get:
+          url: "/api/v1/account/balance"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      - think: 0.5
+
+  - name: "User Search"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/v1/auth/signin"
+          json:
+            email: "arpit.shukla@quickpe.com"
+            password: "password123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      - get:
+          url: "/api/v1/user/bulk?filter=test"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      - think: 1
+
+  - name: "Health Check"
+    weight: 10
+    flow:
+      - get:
+          url: "/health"
+          expect:
+            - statusCode: 200
+      - think: 0.5

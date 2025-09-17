@@ -12,28 +12,24 @@ import {
   DocumentArrowDownIcon,
   CheckCircleIcon,
   XCircleIcon,
-  SparklesIcon,
-  BanknotesIcon,
-  DocumentTextIcon,
-  ArrowTrendingUpIcon,
-  ExclamationTriangleIcon
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
-import AdminAIChat from '../components/AdminAIChat';
 import apiClient from '../services/api/client';
 import toast from 'react-hot-toast';
 
-const AdminDashboard = () => {
+export const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('user-management');
+  const [activeTab, setActiveTab] = useState('users');
   const [analytics, setAnalytics] = useState(null);
   const [featureFlags, setFeatureFlags] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState(null);
+  const [showUserModal, setShowUserModal] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -41,32 +37,24 @@ const AdminDashboard = () => {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
     balance: 0,
     role: 'user'
   });
 
   useEffect(() => {
-    if (pagination?.page) {
-      fetchUsers();
-      fetchAnalytics();
-      fetchFeatureFlags();
-    }
-  }, [pagination?.page, searchTerm, statusFilter]);
-
-  // Initial load effect
-  useEffect(() => {
     fetchUsers();
     fetchAnalytics();
     fetchFeatureFlags();
-  }, []);
+  }, [pagination.page, searchTerm, statusFilter]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
       const response = await apiClient.get('/admin/users', {
         params: {
-          page: pagination?.page || 1,
-          limit: pagination?.limit || 10,
+          page: pagination.page,
+          limit: pagination.limit,
           search: searchTerm,
           status: statusFilter
         }
@@ -106,23 +94,57 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleUserDetails = async (userId) => {
+    try {
+      const response = await apiClient.get(`/admin/users/${userId}`);
+      if (response.data.success) {
+        setSelectedUser(response.data.user);
+        setShowUserModal(true);
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      toast.error('Failed to fetch user details');
+    }
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
       const response = await apiClient.post('/admin/users', {
         ...userForm,
-        password: 'quickpe123'
+        password: 'quickpe123' // Default password
       });
       
       if (response.data.success) {
         toast.success('User created successfully');
         setShowCreateUser(false);
-        setUserForm({ firstName: '', lastName: '', email: '', balance: 0, role: 'user' });
+        setUserForm({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          balance: 0,
+          role: 'user'
+        });
         fetchUsers();
       }
     } catch (error) {
       console.error('Error creating user:', error);
       toast.error(error.response?.data?.message || 'Failed to create user');
+    }
+  };
+
+  const handleUpdateUser = async (userId, updates) => {
+    try {
+      const response = await apiClient.put(`/admin/users/${userId}`, updates);
+      if (response.data.success) {
+        toast.success('User updated successfully');
+        fetchUsers();
+        setShowUserModal(false);
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error('Failed to update user');
     }
   };
 
@@ -211,6 +233,83 @@ const AdminDashboard = () => {
     </motion.div>
   );
 
+  const UserRow = ({ user }) => (
+    <tr className="hover:bg-gray-50">
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="flex items-center">
+          <div className="flex-shrink-0 h-10 w-10">
+            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
+              <span className="text-sm font-medium text-emerald-800">
+                {user.firstName?.[0]}{user.lastName?.[0]}
+              </span>
+            </div>
+          </div>
+          <div className="ml-4">
+            <div className="text-sm font-medium text-gray-900">
+              {user.firstName} {user.lastName}
+            </div>
+            <div className="text-sm text-gray-500">{user.email}</div>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="text-sm text-gray-900">{user.quickpeId}</div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="text-sm text-gray-900">₹{user.balance?.toLocaleString() || 0}</div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+          user.isActive 
+            ? 'bg-green-100 text-green-800' 
+            : 'bg-red-100 text-red-800'
+        }`}>
+          {user.isActive ? 'Active' : 'Inactive'}
+        </span>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+          user.role === 'admin' 
+            ? 'bg-purple-100 text-purple-800' 
+            : 'bg-gray-100 text-gray-800'
+        }`}>
+          {user.role}
+        </span>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => handleUserDetails(user._id)}
+            className="text-indigo-600 hover:text-indigo-900"
+          >
+            <EyeIcon className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => {
+              setSelectedUser(user);
+              setShowResetPassword(true);
+            }}
+            className="text-yellow-600 hover:text-yellow-900"
+          >
+            <KeyIcon className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => handleUpdateUser(user._id, { isActive: !user.isActive })}
+            className="text-blue-600 hover:text-blue-900"
+          >
+            <PencilIcon className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => handleDeleteUser(user._id)}
+            className="text-red-600 hover:text-red-900"
+          >
+            <TrashIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+
   if (loading && users.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -227,6 +326,7 @@ const AdminDashboard = () => {
       <Header />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -236,6 +336,7 @@ const AdminDashboard = () => {
           <p className="text-gray-600">Manage users, feature flags, and view analytics</p>
         </motion.div>
 
+        {/* Analytics Cards */}
         {analytics && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
@@ -265,20 +366,18 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {/* Tabs */}
         <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex flex-wrap space-x-4 lg:space-x-8">
+          <nav className="-mb-px flex space-x-8">
             {[
-              { id: 'user-management', name: 'User Management', icon: UsersIcon },
-              { id: 'analytics', name: 'Analytics', icon: ChartBarIcon },
-              { id: 'feature-flags', name: 'Feature Flags', icon: FlagIcon },
-              { id: 'payments', name: 'Payments', icon: BanknotesIcon, comingSoon: true },
-              { id: 'trade-analytics', name: 'Trade Journal Analytics', icon: DocumentTextIcon, comingSoon: true },
-              { id: 'ai-assistant', name: 'AI Assistant', icon: SparklesIcon }
+              { id: 'users', name: 'User Management', icon: UsersIcon },
+              { id: 'features', name: 'Feature Flags', icon: FlagIcon },
+              { id: 'analytics', name: 'Analytics', icon: ChartBarIcon }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm relative ${
+                className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
                     ? 'border-emerald-500 text-emerald-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -286,18 +385,15 @@ const AdminDashboard = () => {
               >
                 <tab.icon className="h-5 w-5" />
                 <span>{tab.name}</span>
-                {tab.comingSoon && (
-                  <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 text-xs px-1 rounded-full">
-                    Soon
-                  </span>
-                )}
               </button>
             ))}
           </nav>
         </div>
 
-        {activeTab === 'user-management' && (
+        {/* Tab Content */}
+        {activeTab === 'users' && (
           <div className="bg-white shadow rounded-lg">
+            {/* User Management Header */}
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-medium text-gray-900">User Management</h2>
@@ -309,106 +405,110 @@ const AdminDashboard = () => {
                   <span>Add User</span>
                 </button>
               </div>
+              
+              {/* Search and Filter */}
+              <div className="mt-4 flex space-x-4">
+                <div className="flex-1 relative">
+                  <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search users..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 w-full"
+                  />
+                </div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
             </div>
 
+            {/* Users Table */}
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">QuickPe ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      User
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      QuickPe ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Balance
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Role
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {users.map((user) => (
-                    <tr key={user._id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                              <span className="text-sm font-medium text-emerald-800">
-                                {user.firstName?.[0]}{user.lastName?.[0]}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
-                              {user.firstName} {user.lastName}
-                            </div>
-                            <div className="text-sm text-gray-500">{user.email}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{user.quickpeId}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">₹{user.balance?.toLocaleString() || 0}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {user.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowResetPassword(true);
-                            }}
-                            className="text-yellow-600 hover:text-yellow-900"
-                          >
-                            <KeyIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user._id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <UserRow key={user._id} user={user} />
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} results
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                    disabled={pagination.page === 1}
+                    className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                    disabled={pagination.page === pagination.pages}
+                    className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {activeTab === 'feature-flags' && (
+        {activeTab === 'features' && (
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Feature Flags</h2>
             <div className="space-y-4">
               {featureFlags.map((flag) => (
-                <div key={flag.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                <div key={flag._id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                   <div>
                     <h3 className="font-medium text-gray-900">{flag.name}</h3>
                     <p className="text-sm text-gray-500">{flag.description}</p>
                   </div>
                   <button
-                    onClick={() => handleToggleFeatureFlag(flag.id, flag.enabled)}
+                    onClick={() => handleToggleFeatureFlag(flag._id, flag.isEnabled)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      flag.enabled ? 'bg-emerald-600' : 'bg-gray-200'
+                      flag.isEnabled ? 'bg-emerald-600' : 'bg-gray-200'
                     }`}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        flag.enabled ? 'translate-x-6' : 'translate-x-1'
+                        flag.isEnabled ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
                   </button>
@@ -420,111 +520,6 @@ const AdminDashboard = () => {
 
         {activeTab === 'analytics' && analytics && (
           <div className="space-y-6">
-            {/* Overview Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <UsersIcon className="h-8 w-8 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Users</p>
-                    <p className="text-2xl font-bold text-gray-900">{analytics.overview?.totalUsers || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <ArrowTrendingUpIcon className="h-8 w-8 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Transactions</p>
-                    <p className="text-2xl font-bold text-gray-900">{analytics.overview?.totalTransactions || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <BanknotesIcon className="h-8 w-8 text-emerald-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Volume</p>
-                    <p className="text-2xl font-bold text-gray-900">₹{analytics.overview?.totalAmount?.toLocaleString() || 0}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <SparklesIcon className="h-8 w-8 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Active Users</p>
-                    <p className="text-2xl font-bold text-gray-900">{analytics.overview?.activeUsers || 0}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {analytics.recentActivity?.map((activity, index) => (
-                      <tr key={index}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {activity.transactionId}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {activity.user}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <span className={activity.type === 'credit' ? 'text-green-600' : 'text-red-600'}>
-                            {activity.type === 'credit' ? '+' : '-'}₹{activity.amount}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            activity.type === 'credit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {activity.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            activity.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {activity.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(activity.createdAt).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Analytics Export */}
             <div className="bg-white shadow rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-medium text-gray-900">Analytics Export</h2>
@@ -544,14 +539,19 @@ const AdminDashboard = () => {
                 </div>
               </div>
               
+              {/* Analytics Summary */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <h3 className="font-medium text-gray-900">User Growth</h3>
-                  <p className="text-2xl font-bold text-blue-600">{analytics.userGrowth?.length || 0} months tracked</p>
+                  <p className="text-2xl font-bold text-blue-600">{analytics.users?.growth?.length || 0} days tracked</p>
                 </div>
                 <div className="p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-medium text-gray-900">Average Transaction</h3>
-                  <p className="text-2xl font-bold text-green-600">₹{analytics.overview?.averageTransactionAmount?.toFixed(2) || 0}</p>
+                  <h3 className="font-medium text-gray-900">Transaction Success Rate</h3>
+                  <p className="text-2xl font-bold text-green-600">
+                    {analytics.transactions?.total > 0 
+                      ? ((analytics.transactions.completed / analytics.transactions.total) * 100).toFixed(1)
+                      : 0}%
+                  </p>
                 </div>
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <h3 className="font-medium text-gray-900">Trade Journal Entries</h3>
@@ -561,36 +561,9 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
-
-        {activeTab === 'ai-assistant' && (
-          <AdminAIChat />
-        )}
-
-        {activeTab === 'payments' && (
-          <div className="bg-white shadow rounded-lg p-6 text-center">
-            <BanknotesIcon className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-            <h2 className="text-xl font-medium text-gray-900 mb-2">Payment Management</h2>
-            <p className="text-gray-600 mb-4">Advanced payment processing, merchant management, and transaction monitoring tools.</p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-800 font-medium">Coming Soon</p>
-              <p className="text-yellow-700 text-sm">This feature is under development and will be available in the next release.</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'trade-analytics' && (
-          <div className="bg-white shadow rounded-lg p-6 text-center">
-            <DocumentTextIcon className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-            <h2 className="text-xl font-medium text-gray-900 mb-2">Trade Journal Analytics</h2>
-            <p className="text-gray-600 mb-4">Comprehensive trading analytics, portfolio insights, and performance metrics for all users.</p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-800 font-medium">Coming Soon</p>
-              <p className="text-yellow-700 text-sm">Advanced trading analytics dashboard is being developed.</p>
-            </div>
-          </div>
-        )}
       </div>
 
+      {/* Modals */}
       {showCreateUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">

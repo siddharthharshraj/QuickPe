@@ -1,0 +1,784 @@
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  EyeIcon,
+  ChartBarIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  CalendarIcon,
+  TagIcon,
+  DocumentArrowDownIcon,
+  ClockIcon,
+  UserIcon
+} from '@heroicons/react/24/outline';
+import { Header } from '../components/Header';
+import { Footer } from '../components/Footer';
+import apiClient from '../services/api/client';
+import toast from 'react-hot-toast';
+
+export const TradeJournal = () => {
+  const [trades, setTrades] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [activeTab, setActiveTab] = useState('trades');
+  const [filters, setFilters] = useState({
+    symbol: '',
+    status: 'all',
+    tradeType: 'all',
+    startDate: '',
+    endDate: ''
+  });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0
+  });
+  const [tradeForm, setTradeForm] = useState({
+    symbol: '',
+    tradeType: 'BUY',
+    quantity: '',
+    entryPrice: '',
+    exitPrice: '',
+    entryDate: '',
+    exitDate: '',
+    strategy: '',
+    notes: '',
+    tags: [],
+    sector: '',
+    marketCap: 'LARGE_CAP',
+    stopLoss: '',
+    target: '',
+    brokerage: '',
+    taxes: ''
+  });
+
+  useEffect(() => {
+    checkFeatureAccess();
+  }, []);
+
+  useEffect(() => {
+    fetchTrades();
+    fetchAnalytics();
+  }, [filters, pagination.page]);
+
+  const checkFeatureAccess = async () => {
+    try {
+      await fetchTrades();
+    } catch (error) {
+      if (error.response?.status === 403) {
+        toast.error('Trade Journal feature is not enabled for your account');
+      }
+    }
+  };
+
+  const fetchTrades = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get('/trade-journal', {
+        params: {
+          ...filters,
+          page: pagination.page,
+          limit: pagination.limit,
+          sortBy: 'createdAt',
+          sortOrder: 'desc'
+        }
+      });
+      
+      if (response.data.success) {
+        setTrades(response.data.trades || []);
+        setSummary(response.data.summary || {
+          totalTrades: 0,
+          totalPnL: 0,
+          winningTrades: 0,
+          losingTrades: 0,
+          avgHoldingPeriod: 0,
+          totalInvested: 0,
+          winRate: 0
+        });
+        setPagination(response.data.pagination || pagination);
+      }
+    } catch (error) {
+      console.error('Error fetching trades:', error);
+      if (error.response?.status !== 403) {
+        toast.error('Failed to fetch trades');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      const response = await apiClient.get('/trade-journal/analytics/summary');
+      if (response.data.success) {
+        setAnalytics(response.data.analytics);
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const response = await apiClient.get('/trade-journal/logs');
+      if (response.data.success) {
+        setLogs(response.data.logs);
+      }
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+    }
+  };
+
+  const exportToCSV = async () => {
+    try {
+      const response = await apiClient.get('/trade-journal/export/csv', {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Get filename from response headers
+      const contentDisposition = response.headers['content-disposition'];
+      const filename = contentDisposition 
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `QuickPe_TradeJournal_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      toast.success('Portfolio exported successfully!');
+    } catch (error) {
+      console.error('Error exporting portfolio:', error);
+      if (error.response?.status === 404) {
+        toast.error('No trades found to export');
+      } else {
+        toast.error('Failed to export portfolio');
+      }
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const url = selectedTrade 
+        ? `/trade-journal/${selectedTrade._id}` 
+        : '/trade-journal';
+      const method = selectedTrade ? 'put' : 'post';
+      
+      const response = await apiClient[method](url, {
+        ...tradeForm,
+        quantity: parseFloat(tradeForm.quantity),
+        entryPrice: parseFloat(tradeForm.entryPrice),
+        exitPrice: tradeForm.exitPrice ? parseFloat(tradeForm.exitPrice) : null,
+        stopLoss: tradeForm.stopLoss ? parseFloat(tradeForm.stopLoss) : null,
+        target: tradeForm.target ? parseFloat(tradeForm.target) : null,
+        brokerage: parseFloat(tradeForm.brokerage) || 0,
+        taxes: parseFloat(tradeForm.taxes) || 0,
+        tags: tradeForm.tags.filter(tag => tag.trim())
+      });
+      
+      if (response.data.success) {
+        toast.success(selectedTrade ? 'Trade updated successfully' : 'Trade created successfully');
+        setShowModal(false);
+        resetForm();
+        fetchTrades();
+        fetchAnalytics();
+      }
+    } catch (error) {
+      console.error('Error saving trade:', error);
+      toast.error('Failed to save trade');
+    }
+  };
+
+  const handleDelete = async (tradeId) => {
+    if (!window.confirm('Are you sure you want to delete this trade?')) return;
+    
+    try {
+      const response = await apiClient.delete(`/trade-journal/${tradeId}`);
+      if (response.data.success) {
+        toast.success('Trade deleted successfully');
+        fetchTrades();
+        fetchAnalytics();
+      }
+    } catch (error) {
+      console.error('Error deleting trade:', error);
+      toast.error('Failed to delete trade');
+    }
+  };
+
+  const handleCloseTrade = async (tradeId, exitPrice) => {
+    try {
+      const response = await apiClient.post(`/trade-journal/${tradeId}/close`, {
+        exitPrice: parseFloat(exitPrice),
+        exitDate: new Date().toISOString()
+      });
+      
+      if (response.data.success) {
+        toast.success('Trade closed successfully');
+        fetchTrades();
+        fetchAnalytics();
+      }
+    } catch (error) {
+      console.error('Error closing trade:', error);
+      toast.error('Failed to close trade');
+    }
+  };
+
+  const resetForm = () => {
+    setTradeForm({
+      symbol: '',
+      tradeType: 'BUY',
+      quantity: '',
+      entryPrice: '',
+      exitPrice: '',
+      entryDate: '',
+      exitDate: '',
+      strategy: '',
+      notes: '',
+      tags: [],
+      sector: '',
+      marketCap: 'LARGE_CAP',
+      stopLoss: '',
+      target: '',
+      brokerage: '',
+      taxes: ''
+    });
+    setSelectedTrade(null);
+  };
+
+  const openEditModal = (trade) => {
+    setSelectedTrade(trade);
+    setTradeForm({
+      symbol: trade.symbol,
+      tradeType: trade.tradeType,
+      quantity: trade.quantity.toString(),
+      entryPrice: trade.entryPrice.toString(),
+      exitPrice: trade.exitPrice ? trade.exitPrice.toString() : '',
+      entryDate: trade.entryDate ? new Date(trade.entryDate).toISOString().split('T')[0] : '',
+      exitDate: trade.exitDate ? new Date(trade.exitDate).toISOString().split('T')[0] : '',
+      strategy: trade.strategy || '',
+      notes: trade.notes || '',
+      tags: trade.tags || [],
+      sector: trade.sector || '',
+      marketCap: trade.marketCap || 'LARGE_CAP',
+      stopLoss: trade.stopLoss ? trade.stopLoss.toString() : '',
+      target: trade.target ? trade.target.toString() : '',
+      brokerage: trade.brokerage ? trade.brokerage.toString() : '',
+      taxes: trade.taxes ? trade.taxes.toString() : ''
+    });
+    setShowModal(true);
+  };
+
+  const StatCard = ({ title, value, icon: Icon, color = "text-blue-600" }) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white rounded-lg shadow-sm border p-6"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className={`text-2xl font-bold ${color}`}>{value}</p>
+        </div>
+        <Icon className="h-8 w-8 text-gray-400" />
+      </div>
+    </motion.div>
+  );
+
+  if (loading && trades.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Trade Journal</h1>
+              <p className="text-gray-600">Track and analyze your trading performance</p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={exportToCSV}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              >
+                <DocumentArrowDownIcon className="h-4 w-4" />
+                <span>Export CSV</span>
+              </button>
+              <button
+                onClick={() => {
+                  resetForm();
+                  setShowModal(true);
+                }}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 flex items-center space-x-2"
+              >
+                <PlusIcon className="h-4 w-4" />
+                <span>Add Trade</span>
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Trades Table */}
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Symbol
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Quantity
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Entry Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Exit Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      P&L
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {trades.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-center py-8">
+                          <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                          <p className="text-gray-500 mb-4">No trades found</p>
+                          <p className="text-sm text-gray-400">Get started by adding your first trade.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatCard
+              title="Total Trades"
+              value={summary.totalTrades}
+              icon={ChartBarIcon}
+              color="text-blue-600"
+            />
+            <StatCard
+              title="Total P&L"
+              value={`₹${summary.totalPnL?.toLocaleString() || 0}`}
+              icon={summary.totalPnL >= 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon}
+              color={summary.totalPnL >= 0 ? "text-green-600" : "text-red-600"}
+            />
+            <StatCard
+              title="Win Rate"
+              value={`${summary.winRate}%`}
+              icon={ArrowTrendingUpIcon}
+              color="text-purple-600"
+            />
+            <StatCard
+              title="Avg Holding"
+              value={`${Math.round(summary.avgHoldingPeriod || 0)} days`}
+              icon={CalendarIcon}
+              color="text-yellow-600"
+            />
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200 mb-6">
+          <nav className="-mb-px flex space-x-8">
+            {[
+              { id: 'trades', name: 'My Trades', icon: ChartBarIcon },
+              { id: 'logs', name: 'Activity Log', icon: ClockIcon }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === 'logs' && logs.length === 0) {
+                    fetchLogs();
+                  }
+                }}
+                className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === tab.id
+                    ? 'border-emerald-500 text-emerald-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <tab.icon className="h-5 w-5" />
+                <span>{tab.name}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {activeTab === 'trades' && (
+          <>
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <input
+              type="text"
+              placeholder="Symbol"
+              value={filters.symbol}
+              onChange={(e) => setFilters({...filters, symbol: e.target.value})}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500"
+            />
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({...filters, status: e.target.value})}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="all">All Status</option>
+              <option value="OPEN">Open</option>
+              <option value="CLOSED">Closed</option>
+            </select>
+            <select
+              value={filters.tradeType}
+              onChange={(e) => setFilters({...filters, tradeType: e.target.value})}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="all">All Types</option>
+              <option value="BUY">Buy</option>
+              <option value="SELL">Sell</option>
+            </select>
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500"
+            />
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+
+        {/* Trades Table */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Symbol
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quantity
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Entry Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Exit Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    P&L
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {trades.map((trade) => (
+                  <tr key={trade._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{trade.symbol}</div>
+                      <div className="text-sm text-gray-500">{trade.sector}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        trade.tradeType === 'BUY' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {trade.tradeType}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {trade.quantity}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ₹{trade.entryPrice}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {trade.exitPrice ? `₹${trade.exitPrice}` : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`text-sm font-medium ${
+                        trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        ₹{trade.pnl?.toFixed(2) || 0}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        trade.status === 'OPEN' 
+                          ? 'bg-yellow-100 text-yellow-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {trade.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex space-x-2 justify-end">
+                        <button
+                          onClick={() => openEditModal(trade)}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                        {trade.status === 'OPEN' && (
+                          <button
+                            onClick={() => {
+                              const exitPrice = prompt('Enter exit price:');
+                              if (exitPrice) handleCloseTrade(trade._id, exitPrice);
+                            }}
+                            className="text-green-600 hover:text-green-900"
+                          >
+                            <EyeIcon className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(trade._id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+            {trades.length === 0 && !loading && (
+              <div className="text-center py-12">
+                <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No trades</h3>
+                <p className="mt-1 text-sm text-gray-500">Get started by adding your first trade.</p>
+                <div className="mt-6">
+                  <button
+                    onClick={() => {
+                      resetForm();
+                      setShowModal(true);
+                    }}
+                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+                  >
+                    Add Trade
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'logs' && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Activity Log</h2>
+            <div className="space-y-4">
+              {logs.map((log) => (
+                <div key={log._id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
+                  <UserIcon className="h-5 w-5 text-gray-400" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">{log.action.replace('_', ' ')}</p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {logs.length === 0 && (
+                <p className="text-gray-500 text-center py-8">No activity logs found</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Trade Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-screen overflow-y-auto">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">
+              {selectedTrade ? 'Edit Trade' : 'Add New Trade'}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Symbol *</label>
+                  <input
+                    type="text"
+                    required
+                    value={tradeForm.symbol}
+                    onChange={(e) => setTradeForm({...tradeForm, symbol: e.target.value.toUpperCase()})}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Trade Type *</label>
+                  <select
+                    value={tradeForm.tradeType}
+                    onChange={(e) => setTradeForm({...tradeForm, tradeType: e.target.value})}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="BUY">Buy</option>
+                    <option value="SELL">Sell</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Quantity *</label>
+                  <input
+                    type="number"
+                    required
+                    value={tradeForm.quantity}
+                    onChange={(e) => setTradeForm({...tradeForm, quantity: e.target.value})}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Entry Price *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={tradeForm.entryPrice}
+                    onChange={(e) => setTradeForm({...tradeForm, entryPrice: e.target.value})}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Exit Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={tradeForm.exitPrice}
+                    onChange={(e) => setTradeForm({...tradeForm, exitPrice: e.target.value})}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Entry Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={tradeForm.entryDate}
+                    onChange={(e) => setTradeForm({...tradeForm, entryDate: e.target.value})}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Sector</label>
+                  <input
+                    type="text"
+                    value={tradeForm.sector}
+                    onChange={(e) => setTradeForm({...tradeForm, sector: e.target.value})}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Market Cap</label>
+                  <select
+                    value={tradeForm.marketCap}
+                    onChange={(e) => setTradeForm({...tradeForm, marketCap: e.target.value})}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="LARGE_CAP">Large Cap</option>
+                    <option value="MID_CAP">Mid Cap</option>
+                    <option value="SMALL_CAP">Small Cap</option>
+                    <option value="MICRO_CAP">Micro Cap</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Strategy</label>
+                <input
+                  type="text"
+                  value={tradeForm.strategy}
+                  onChange={(e) => setTradeForm({...tradeForm, strategy: e.target.value})}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Notes</label>
+                <textarea
+                  value={tradeForm.notes}
+                  onChange={(e) => setTradeForm({...tradeForm, notes: e.target.value})}
+                  rows={3}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                />
+              </div>
+
+              <div className="flex space-x-2 pt-4">
+                <button
+                  type="submit"
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+                >
+                  {selectedTrade ? 'Update Trade' : 'Add Trade'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    resetForm();
+                  }}
+                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <Footer />
+    </div>
+  );
+};
+
+export default TradeJournal;

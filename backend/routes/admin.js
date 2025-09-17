@@ -295,4 +295,201 @@ router.get('/users/export/csv', adminMiddleware, async (req, res) => {
     }
 });
 
+// Get analytics data (admin only)
+router.get('/analytics', adminMiddleware, async (req, res) => {
+    try {
+        const [
+            totalUsers,
+            totalTransactions,
+            totalAmount,
+            activeUsers,
+            recentTransactions,
+            userGrowth,
+            transactionVolume
+        ] = await Promise.all([
+            User.countDocuments({}),
+            Transaction.countDocuments({}),
+            Transaction.aggregate([
+                { $group: { _id: null, total: { $sum: '$amount' } } }
+            ]),
+            User.countDocuments({ isActive: { $ne: false } }),
+            Transaction.find({})
+                .populate('userId', 'firstName lastName email')
+                .sort({ timestamp: -1 })
+                .limit(10)
+                .lean(),
+            User.aggregate([
+                {
+                    $group: {
+                        _id: {
+                            year: { $year: '$createdAt' },
+                            month: { $month: '$createdAt' }
+                        },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $sort: { '_id.year': -1, '_id.month': -1 } },
+                { $limit: 6 }
+            ]),
+            Transaction.aggregate([
+                {
+                    $group: {
+                        _id: {
+                            year: { $year: '$timestamp' },
+                            month: { $month: '$timestamp' }
+                        },
+                        volume: { $sum: '$amount' },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $sort: { '_id.year': -1, '_id.month': -1 } },
+                { $limit: 6 }
+            ])
+        ]);
+
+        const analytics = {
+            overview: {
+                totalUsers,
+                totalTransactions,
+                totalAmount: totalAmount[0]?.total || 0,
+                activeUsers,
+                averageTransactionAmount: totalTransactions > 0 ? (totalAmount[0]?.total || 0) / totalTransactions : 0
+            },
+            recentActivity: recentTransactions.map(tx => ({
+                id: tx._id,
+                transactionId: tx.transactionId,
+                user: tx.userId ? `${tx.userId.firstName} ${tx.userId.lastName}` : 'Unknown User',
+                userEmail: tx.userId?.email || tx.userEmail || 'N/A',
+                amount: tx.amount,
+                type: tx.type,
+                status: tx.status,
+                category: tx.category,
+                description: tx.description,
+                recipient: tx.recipient,
+                createdAt: tx.timestamp || tx.createdAt
+            })),
+            userGrowth: userGrowth.map(item => ({
+                month: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
+                users: item.count
+            })),
+            transactionVolume: transactionVolume.map(item => ({
+                month: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
+                volume: item.volume,
+                count: item.count
+            }))
+        };
+
+        res.json({
+            success: true,
+            analytics
+        });
+    } catch (error) {
+        console.error('Error fetching analytics:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
+// Get feature flags (admin only)
+router.get('/feature-flags', adminMiddleware, async (req, res) => {
+    try {
+        // Mock feature flags data - in production, this would come from a database
+        const featureFlags = [
+            {
+                id: 'trade-journal',
+                name: 'Trade Journal',
+                description: 'Enable advanced trading journal functionality',
+                enabled: true,
+                category: 'Trading',
+                createdAt: new Date('2024-01-01'),
+                updatedAt: new Date()
+            },
+            {
+                id: 'ai-assistant',
+                name: 'AI Assistant',
+                description: 'Enable AI-powered financial assistant',
+                enabled: true,
+                category: 'AI',
+                createdAt: new Date('2024-01-15'),
+                updatedAt: new Date()
+            },
+            {
+                id: 'advanced-analytics',
+                name: 'Advanced Analytics',
+                description: 'Enable comprehensive analytics dashboard',
+                enabled: true,
+                category: 'Analytics',
+                createdAt: new Date('2024-02-01'),
+                updatedAt: new Date()
+            },
+            {
+                id: 'real-time-notifications',
+                name: 'Real-time Notifications',
+                description: 'Enable real-time push notifications',
+                enabled: true,
+                category: 'Notifications',
+                createdAt: new Date('2024-02-15'),
+                updatedAt: new Date()
+            },
+            {
+                id: 'market-data-widget',
+                name: 'Market Data Widget',
+                description: 'Enable live market data integration',
+                enabled: true,
+                category: 'Market Data',
+                createdAt: new Date('2024-03-01'),
+                updatedAt: new Date()
+            },
+            {
+                id: 'premium-features',
+                name: 'Premium Features',
+                description: 'Enable premium subscription features',
+                enabled: false,
+                category: 'Subscription',
+                createdAt: new Date('2024-03-15'),
+                updatedAt: new Date()
+            }
+        ];
+
+        res.json({
+            success: true,
+            flags: featureFlags
+        });
+    } catch (error) {
+        console.error('Error fetching feature flags:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
+// Update feature flag (admin only)
+router.put('/feature-flags/:id', adminMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { enabled } = req.body;
+
+        // In production, this would update the database
+        // For now, just return success
+        res.json({
+            success: true,
+            message: `Feature flag ${id} updated successfully`,
+            flag: {
+                id,
+                enabled,
+                updatedAt: new Date()
+            }
+        });
+    } catch (error) {
+        console.error('Error updating feature flag:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
 module.exports = router;

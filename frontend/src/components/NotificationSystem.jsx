@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BellIcon, 
@@ -253,7 +254,7 @@ export const NotificationSystem = ({ userId }) => {
   console.log('🔍 NotificationSystem RENDER - unreadCount:', unreadCount, 'notifications.length:', notifications.length);
 
   return (
-    <div className="relative">
+    <div className="relative" style={{ zIndex: 99999 }}>
       {/* Notification Bell */}
       <button
         onClick={() => {
@@ -262,27 +263,29 @@ export const NotificationSystem = ({ userId }) => {
         }}
         className="relative p-2 text-emerald-600 hover:text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 rounded-full transition-colors duration-200"
       >
-        <BellIcon className={`h-6 w-6 ${unreadCount > 0 ? 'animate-pulse text-emerald-700' : 'text-emerald-600'}`} />
+        <BellIcon className={`h-5 w-5 ${unreadCount > 0 ? 'animate-pulse text-emerald-700' : 'text-emerald-600'}`} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-emerald-600 rounded-full animate-ping z-10">
-            {unreadCount}
+          <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full z-20">
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
-        {/* Debug badge - always visible for testing */}
-        <span className="absolute -bottom-1 -left-1 inline-flex items-center justify-center px-1 py-0.5 text-xs font-bold leading-none text-black bg-yellow-300 rounded-full">
-          {notifications.length}
-        </span>
       </button>
 
-      {/* Notification Dropdown */}
-      <AnimatePresence>
-        {showDropdown && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            className="absolute right-0 mt-2 w-80 sm:w-96 md:w-[420px] bg-white rounded-lg shadow-xl border border-emerald-200 z-50 max-h-[80vh] overflow-hidden"
-          >
+      {/* Notification Dropdown - Using Portal */}
+      {showDropdown && createPortal(
+        <AnimatePresence>
+          <div className="fixed inset-0 z-[99999]">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-10" 
+              onClick={() => setShowDropdown(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              className="fixed top-16 right-4 w-80 sm:w-96 md:w-[420px] bg-white rounded-lg shadow-2xl border-2 border-emerald-300 max-h-[80vh] overflow-hidden z-[99999]"
+            >
             <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-3 sm:p-4 rounded-t-lg">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-base sm:text-lg font-semibold">Notifications</h3>
@@ -374,8 +377,10 @@ export const NotificationSystem = ({ userId }) => {
               </div>
             )}
           </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

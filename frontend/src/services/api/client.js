@@ -1,15 +1,21 @@
 import axios from 'axios';
 
-// Environment-aware API base URL configuration for Render/Vercel
+// Environment-aware API base URL configuration for Railway/Vercel
 const getApiBaseUrl = () => {
   // For production deployment - check if we're in production
   if (import.meta.env.PROD) {
-    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+    const baseURL = import.meta.env.VITE_API_URL || 'https://quickpe-backend-production.up.railway.app/api/v1';
     return baseURL;
   }
   
-  // For local development
-  return 'http://localhost:5001/api/v1';
+  // For local development - detect if accessing via network
+  const currentHost = window.location.hostname;
+  if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+    return 'http://localhost:5001/api/v1';
+  } else {
+    // Network access - use the same IP as frontend
+    return `http://${currentHost}:5001/api/v1`;
+  }
 };
 
 const apiClient = axios.create({

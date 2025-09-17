@@ -31,6 +31,7 @@ import AuditTrail from './pages/AuditTrail';
 import About from './pages/About';
 import KPIReports from './pages/KPIReports';
 import AdminDashboard from './pages/AdminDashboard';
+import TradeJournal from './pages/TradeJournalFixed';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
 
@@ -124,6 +125,11 @@ function App() {
           <Route path="/admin" element={
             <ProtectedRoute>
               <AdminDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/trade-journal" element={
+            <ProtectedRoute>
+              <TradeJournal />
             </ProtectedRoute>
           } />
           <Route path="/contact" element={<Contact />} />

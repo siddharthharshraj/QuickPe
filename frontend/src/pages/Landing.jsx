@@ -10,7 +10,9 @@ import {
     PlayIcon
 } from '@heroicons/react/24/outline';
 import QuickPeLogo from '../components/QuickPeLogo';
+import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
+import TradeJournalMockup from '../components/TradeJournalMockup';
 import 'driver.js/dist/driver.css';
 
 export const Landing = () => {
@@ -231,15 +233,15 @@ export const Landing = () => {
                             className="text-center p-6 bg-white rounded-xl shadow-lg"
                             whileHover={{ y: -5 }}
                         >
-                            <div className="text-3xl font-bold text-emerald-600 mb-2">2.8M+</div>
-                            <div className="text-sm text-slate-600">Total Transactions</div>
+                            <div className="text-3xl font-bold text-emerald-600 mb-2">3.2K+</div>
+                            <div className="text-sm text-slate-600">Total Requests</div>
                             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mx-auto mt-2"></div>
                         </motion.div>
                         <motion.div 
                             className="text-center p-6 bg-white rounded-xl shadow-lg"
                             whileHover={{ y: -5 }}
                         >
-                            <div className="text-3xl font-bold text-blue-600 mb-2">1.2s</div>
+                            <div className="text-3xl font-bold text-blue-600 mb-2">391ms</div>
                             <div className="text-sm text-slate-600">Avg Response Time</div>
                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mx-auto mt-2"></div>
                         </motion.div>
@@ -247,16 +249,16 @@ export const Landing = () => {
                             className="text-center p-6 bg-white rounded-xl shadow-lg"
                             whileHover={{ y: -5 }}
                         >
-                            <div className="text-3xl font-bold text-purple-600 mb-2">99.7%</div>
-                            <div className="text-sm text-slate-600">Uptime</div>
+                            <div className="text-3xl font-bold text-purple-600 mb-2">89%</div>
+                            <div className="text-sm text-slate-600">Success Rate</div>
                             <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse mx-auto mt-2"></div>
                         </motion.div>
                         <motion.div 
                             className="text-center p-6 bg-white rounded-xl shadow-lg"
                             whileHover={{ y: -5 }}
                         >
-                            <div className="text-3xl font-bold text-teal-600 mb-2">500+</div>
-                            <div className="text-sm text-slate-600">Active Users</div>
+                            <div className="text-3xl font-bold text-teal-600 mb-2">2.2K</div>
+                            <div className="text-sm text-slate-600">Concurrent Users</div>
                             <div className="w-2 h-2 bg-teal-500 rounded-full animate-pulse mx-auto mt-2"></div>
                         </motion.div>
                     </div>
@@ -345,6 +347,55 @@ export const Landing = () => {
 
 
             {/* CTA Section */}
+            {/* Trade Journal Showcase Section */}
+            <motion.section
+                initial={{ opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+                viewport={{ once: true }}
+                className="py-20 bg-gradient-to-br from-gray-50 to-emerald-50"
+            >
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center mb-12">
+                        <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                            Professional Trade Journal
+                        </h2>
+                        <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                            Track your investments with real-time market data from Indian stock exchanges. 
+                            Monitor your portfolio performance and make informed decisions.
+                        </p>
+                        <div className="mt-6 flex items-center justify-center space-x-2 text-sm text-emerald-600">
+                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                            <span>Live market data • Updates every 5 seconds</span>
+                        </div>
+                    </div>
+                    
+                    <div className="max-w-5xl mx-auto">
+                        <TradeJournalMockup />
+                    </div>
+                    
+                    <div className="text-center mt-12">
+                        <p className="text-gray-600 mb-6">
+                            Join thousands of investors already using QuickPe's Trade Journal
+                        </p>
+                        <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+                            <button
+                                onClick={() => navigate('/signup')}
+                                className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-8 py-3 rounded-xl font-semibold text-lg hover:from-emerald-700 hover:to-teal-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                            >
+                                Start Trading Journal Free
+                            </button>
+                            <button
+                                onClick={() => navigate('/about')}
+                                className="text-emerald-600 border border-emerald-600 px-8 py-3 rounded-xl font-semibold text-lg hover:bg-emerald-50 transition-all duration-200"
+                            >
+                                Learn More
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </motion.section>
+
             <section className="py-20 bg-gradient-to-r from-emerald-600 to-teal-600">
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">

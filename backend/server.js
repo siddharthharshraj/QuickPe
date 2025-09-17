@@ -14,6 +14,9 @@ const userRoutes = require('./routes/user');
 const accountRoutes = require('./routes/account');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
+const adminNewRoutes = require('./routes/adminNew');
+const tradeJournalRoutes = require('./routes/tradeJournal');
+const initializeRoutes = require('./routes/initialize');
 const analyticsRoutes = require('./routes/analytics');
 const analyticsComprehensiveRoutes = require('./routes/analytics-comprehensive');
 const contactRoutes = require('./routes/contact');
@@ -29,12 +32,12 @@ const io = new Server(server, {
     origin: [
       "http://localhost:3000",
       "http://localhost:5173",
-      "http://localhost:5174", 
-      "http://localhost:5175",
-      "http://localhost:5176",
-      "http://localhost:3000",
-      "https://quickpe-frontend.vercel.app",
-      process.env.FRONTEND_URL
+      "http://192.168.0.4:5173", // Network access
+      /^http:\/\/192\.168\.\d+\.\d+:5173$/, // Any local network IP
+      /^http:\/\/10\.\d+\.\d+\.\d+:5173$/, // Private network range
+      /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:5173$/, // Private network range
+      "https://quickpe.vercel.app",
+      "https://quickpe-frontend.vercel.app"
     ],
     methods: ["GET", "POST"],
     credentials: true
@@ -59,27 +62,28 @@ app.use(helmet({
 // Compression middleware
 app.use(compression());
 
-// CORS configuration for Render/Vercel deployment
+// CORS configuration for development and network access
 const corsOptions = {
   origin: [
     "http://localhost:3000",
     "http://localhost:5173",
-    "http://localhost:5174", 
-    "http://localhost:5175",
-    "http://localhost:5176",
+    "http://192.168.0.4:5173", // Network access
+    /^http:\/\/192\.168\.\d+\.\d+:5173$/, // Any local network IP
+    /^http:\/\/10\.\d+\.\d+\.\d+:5173$/, // Private network range
+    /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:5173$/, // Private network range
+    "https://quickpe.vercel.app",
     "https://quickpe-frontend.vercel.app",
-    process.env.FRONTEND_URL
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'Cache-Control',
-    'Pragma',
-    'Expires'
+    "https://quickpe-backend.onrender.com",
+    "https://quickpe.onrender.com",
+    "https://quickpe-api.onrender.com",
+    "https://quickpe-frontend.onrender.com",
+    "https://quickpe-backend.vercel.app",
+    "https://quickpe-api.vercel.app",
+    /\.vercel\.app$/,
+    /\.onrender\.com$/,
+    /\.netlify\.app$/,
+    /\.railway\.app$/,
+    /\.fly\.dev$/
   ],
   credentials: true,
   optionsSuccessStatus: 200,
@@ -114,10 +118,58 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API Routes
-app.use('/api/v1/auth', require('./routes/auth'));
-app.use('/api/v1/account', require('./routes/account'));
-app.use('/api/v1/admin', require('./routes/admin'));
-app.use('/api/v1/analytics', require('./routes/analytics'));
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/account', accountRoutes);
+app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/audit', require('./routes/audit'));
+app.use('/api/v1/notifications', require('./routes/notifications'));
+app.use('/api/v1/trade-journal', tradeJournalRoutes);
+
+// Public market data endpoint
+app.get('/api/v1/market-data', (req, res) => {
+    try {
+        const marketData = {
+            status: 'OPEN',
+            timestamp: new Date().toISOString(),
+            indices: {
+                nifty50: {
+                    value: 19674.25,
+                    change: 156.75,
+                    changePercent: 0.80
+                },
+                sensex: {
+                    value: 65953.48,
+                    change: 528.17,
+                    changePercent: 0.81
+                }
+            },
+            topGainers: [
+                { symbol: 'RELIANCE', price: 3306.26, change: -25.20, changePercent: -0.76, sector: 'Oil & Gas' },
+                { symbol: 'TCS', price: 1482.54, change: 27.45, changePercent: 1.94, sector: 'IT Services' },
+                { symbol: 'HDFCBANK', price: 1249.67, change: 13.10, changePercent: 1.06, sector: 'Banking' }
+            ],
+            topLosers: [
+                { symbol: 'INFY', price: 2450.35, change: 19.35, changePercent: 0.80, sector: 'IT Services' },
+                { symbol: 'HINDUNILVR', price: 2086.71, change: -38.90, changePercent: -1.88, sector: 'FMCG' },
+                { symbol: 'ICICIBANK', price: 2225.95, change: 31.45, changePercent: 1.43, sector: 'Banking' }
+            ]
+        };
+
+        res.json({
+            success: true,
+            data: marketData
+        });
+    } catch (error) {
+        console.error('Error fetching market data:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch market data'
+        });
+    }
+});
+
+app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/analytics-comprehensive', require('./routes/analytics-comprehensive'));
 app.use('/api/v1/ai-assistant', aiAssistantRoutes);
 app.use('/api/v1/notifications', require('./routes/notifications'));
@@ -287,10 +339,11 @@ async function startServer() {
     app.set('io', io);
     
     // Start the server
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 QuickPe Backend running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+      console.log(`🌐 Network access: http://0.0.0.0:${PORT}/health`);
     });
     
     // Handle MongoDB connection errors after initial connection
@@ -313,9 +366,12 @@ function gracefulShutdown() {
   console.log('🔄 Received shutdown signal, closing server gracefully...');
   
   // Close MongoDB connection
-  mongoose.connection.close(() => {
+  mongoose.connection.close().then(() => {
     console.log('📊 MongoDB connection closed');
     process.exit(0);
+  }).catch((err) => {
+    console.error('Error closing MongoDB connection:', err);
+    process.exit(1);
   });
   
   // Force close after 5 seconds
