@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const { cache, clearCache, invalidateTransactionCache } = require('../middleware/cache');
 const { authMiddleware } = require('../middleware/index');
+const { cacheMiddleware, invalidateUserCache } = require('../utils/cache');
+const { paginateQuery, monitorQuery, optimizeQuery } = require('../utils/performance');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const Notification = require('../models/Notification');
@@ -11,8 +13,8 @@ const { logSocketEvent, logTransaction, logNotification, logRealTimeEvent, logEr
 
 const router = express.Router();
 
-// Get account balance
-router.get("/balance", authMiddleware, async (req, res) => {
+// Get account balance with caching
+router.get("/balance", authMiddleware, cacheMiddleware(60), async (req, res) => {
     try {
         // Get user from User model which has balance field
         const user = await User.findById(req.userId).lean();
@@ -114,7 +116,7 @@ router.post("/deposit", authMiddleware, async (req, res) => {
 });
 
 // GET /api/v1/account/transactions - Get user transactions with pagination and filters
-router.get('/transactions', authMiddleware, async (req, res) => {
+router.get('/transactions', authMiddleware, cacheMiddleware(120), async (req, res) => {
     try {
         const {
             page = 1,
@@ -512,6 +514,10 @@ router.post("/transfer", authMiddleware, async (req, res) => {
       debitTransactionId: result.debitTransaction._id,
       creditTransactionId: result.creditTransaction._id
     });
+
+    // Invalidate cache for both sender and receiver
+    invalidateUserCache(req.userId);
+    invalidateUserCache(result.receiver._id);
 
     res.json({
       message: "Transfer successful",

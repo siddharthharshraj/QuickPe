@@ -59,8 +59,19 @@ app.use(helmet({
   },
 }));
 
-// Compression middleware
-app.use(compression());
+// Compression middleware with optimization
+app.use(compression({
+  level: 6, // Compression level (0-9)
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    // Don't compress responses with this request header
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Use compression filter function
+    return compression.filter(req, res);
+  }
+}));
 
 // CORS configuration for development and network access
 const corsOptions = {
@@ -95,22 +106,41 @@ app.use(cors(corsOptions));
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
+// Performance monitoring middleware
+const { monitorMemory, optimizeResponse } = require('./utils/performance');
+const { cacheMiddleware } = require('./utils/cache');
+
+// Memory monitoring (every 30 seconds)
+setInterval(() => {
+  monitorMemory();
+}, 30000);
+
+// Response optimization middleware
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  res.json = function(data) {
+    const optimizedData = optimizeResponse(data, {
+      exclude: ['__v', 'password', 'refreshToken']
+    });
+    return originalJson.call(this, optimizedData);
+  };
+  next();
+});
+
 // Rate limiting - more lenient for development
 const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 1000, // limit each IP to 1000 requests per minute
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // limit each IP to 1000 requests per windowMs
   message: {
-    error: 'Too many requests from this IP, please try again later.'
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: '15 minutes'
   },
-  skip: (req) => {
-    // Skip rate limiting for auth and account endpoints in development
-    if (process.env.NODE_ENV !== 'production' && 
-        (req.path.includes('/auth/') || req.path.includes('/account/'))) {
-      return true;
-    }
-    return false;
-  }
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for health checks
+  skip: (req) => req.path === '/health'
 });
+
 app.use('/api/', limiter);
 
 // Body parsing middleware

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '../components/Button';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { Footer } from '../components/Footer';
-import { SendingAnimation } from '../components/LoadingSkeleton';
+import { PageSkeleton } from '../components/PageSkeleton';
 import { SuccessModal } from '../components/SuccessModal';
 
 export const SendMoney = () => {

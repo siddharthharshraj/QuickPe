@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -12,31 +12,36 @@ import { Toaster } from 'react-hot-toast';
 import { QueryProvider } from './providers/QueryProvider';
 
 // Import components
-import ErrorBoundary from './components/ErrorBoundary';
+import EnhancedErrorBoundary from './components/EnhancedErrorBoundary';
+import SafeLazyWrapper from './components/SafeLazyWrapper';
+import PerformanceMonitor from './components/PerformanceMonitor';
 import { useSocket } from './sockets/useSocket';
 import { ConnectionStatus } from './components/ConnectionStatus';
-
-// Import pages
-import Landing from './pages/Landing';
-import Signin from './pages/Signin';
-import Signup from './pages/Signup';
-import DashboardHome from './pages/DashboardHome';
-import SendMoney from './pages/SendMoney';
-import SendMoneyPage from './pages/SendMoneyPage';
-import TransactionHistory from './pages/TransactionHistory';
-import Analytics from './pages/Analytics';
-import AIAssistant from './pages/AIAssistant';
-import Contact from './pages/Contact';
-import AuditTrail from './pages/AuditTrail';
-import About from './pages/About';
-import KPIReports from './pages/KPIReports';
-import AdminDashboard from './pages/AdminDashboard';
-import TradeJournal from './pages/TradeJournalFixed';
-import Settings from './pages/Settings';
-import NotFound from './pages/NotFound';
-
-// Import components
 import ProtectedRoute from './components/ProtectedRoute';
+
+// Import lazy components for code splitting
+import {
+  LazyLanding,
+  LazySignin,
+  LazySignup,
+  LazyDashboardHome,
+  LazySendMoney,
+  LazySendMoneyPage,
+  LazyTransactionHistory,
+  LazyAnalytics,
+  LazyAIAssistant,
+  LazyContact,
+  LazyAuditTrail,
+  LazyAbout,
+  LazyKPIReports,
+  LazyAdminDashboard,
+  LazyTradeJournal,
+  LazySettings,
+  LazyNotFound,
+  DashboardSkeleton,
+  FormSkeleton,
+  AnalyticsSkeleton
+} from './components/LazyComponents';
 
 // Import styles
 import './App.css';
@@ -63,9 +68,14 @@ function App() {
   const currentUserId = localStorage.getItem('userId');
   const { isConnected, connectionStatus, reconnectAttempts, lastHeartbeat } = useSocket(currentUserId);
 
+  // Preload critical components on app start (disabled to prevent errors)
+  // useEffect(() => {
+  //   preloadCriticalComponents();
+  // }, []);
+
   return (
     <QueryProvider>
-      <ErrorBoundary>
+      <EnhancedErrorBoundary>
         <GlobalSocketConnection />
         {/* Connection Status Monitor */}
         {currentUserId && (
@@ -78,64 +88,111 @@ function App() {
         )}
          <BrowserRouter>
         <Routes>
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/signin" element={<Signin />} />
-          <Route path="/kpi-reports" element={<KPIReports />} />
-          <Route path="/about" element={<About />} />
+          <Route path="/signup" element={
+            <SafeLazyWrapper fallback={<FormSkeleton />}>
+              <LazySignup />
+            </SafeLazyWrapper>
+          } />
+          <Route path="/signin" element={
+            <SafeLazyWrapper fallback={<FormSkeleton />}>
+              <LazySignin />
+            </SafeLazyWrapper>
+          } />
+          <Route path="/kpi-reports" element={
+            <Suspense fallback={<DashboardSkeleton />}>
+              <LazyKPIReports />
+            </Suspense>
+          } />
+          <Route path="/about" element={
+            <Suspense fallback={<DashboardSkeleton />}>
+              <LazyAbout />
+            </Suspense>
+          } />
           <Route path="/audit-trail" element={
             <ProtectedRoute>
-              <AuditTrail />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyAuditTrail />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <DashboardHome />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyDashboardHome />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/send-money" element={
             <ProtectedRoute>
-              <SendMoneyPage />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazySendMoneyPage />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/send" element={
             <ProtectedRoute>
-              <SendMoney />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazySendMoney />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/transaction-history" element={
             <ProtectedRoute>
-              <TransactionHistory />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyTransactionHistory />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/analytics" element={
             <ProtectedRoute>
-              <Analytics />
+              <Suspense fallback={<AnalyticsSkeleton />}>
+                <LazyAnalytics />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/ai-assistant" element={
             <ProtectedRoute>
-              <AIAssistant />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyAIAssistant />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/settings" element={
             <ProtectedRoute>
-              <Settings />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazySettings />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/admin" element={
             <ProtectedRoute>
-              <AdminDashboard />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyAdminDashboard />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/trade-journal" element={
             <ProtectedRoute>
-              <TradeJournal />
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyTradeJournal />
+              </Suspense>
             </ProtectedRoute>
           } />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/" element={<Landing />} />
-          <Route path="*" element={<NotFound />} />
+          <Route path="/contact" element={
+            <Suspense fallback={<DashboardSkeleton />}>
+              <LazyContact />
+            </Suspense>
+          } />
+          <Route path="/" element={
+            <Suspense fallback={<DashboardSkeleton />}>
+              <LazyLanding />
+            </Suspense>
+          } />
+          <Route path="*" element={
+            <Suspense fallback={<DashboardSkeleton />}>
+              <LazyNotFound />
+            </Suspense>
+          } />
         </Routes>
       </BrowserRouter>
       
@@ -165,7 +222,10 @@ function App() {
           },
         }}
       />
-    </ErrorBoundary>
+        
+        {/* Performance Monitor */}
+        <PerformanceMonitor />
+      </EnhancedErrorBoundary>
     </QueryProvider>
   )
 }

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { 
@@ -8,7 +9,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { Button } from "./Button";
 import apiClient from "../services/api/client";
-import { useNavigate } from "react-router-dom";
 
 export const Users = () => {
     const [users, setUsers] = useState([]);

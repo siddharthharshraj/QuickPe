@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { 
     CurrencyRupeeIcon, 
@@ -8,8 +8,9 @@ import {
 } from "@heroicons/react/24/outline";
 import apiClient from "../services/api/client";
 import { Button } from "./Button";
+import { useDebounce, useOptimizedCallback } from "../utils/performance";
 
-export const Balance = ({ onBalanceUpdate }) => {
+export const Balance = memo(({ onBalanceUpdate }) => {
     const [balance, setBalance] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -23,7 +24,7 @@ export const Balance = ({ onBalanceUpdate }) => {
         return () => clearTimeout(timer);
     }, []);
 
-    const fetchBalance = async () => {
+    const fetchBalance = useCallback(async () => {
         try {
             const response = await apiClient.get("/account/balance");
             console.log('Balance fetch response:', response.data);
@@ -41,7 +42,7 @@ export const Balance = ({ onBalanceUpdate }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [onBalanceUpdate]);
 
     const addFakeMoney = async (amount) => {
         setAddingMoney(true);
@@ -186,4 +187,7 @@ export const Balance = ({ onBalanceUpdate }) => {
             </div>
         </motion.div>
     );
-};export default Balance;
+});
+
+Balance.displayName = 'Balance';
+export default Balance;

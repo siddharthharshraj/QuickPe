@@ -2,10 +2,25 @@
   "name": "quickpe-wallet",
   "version": "1.0.0",
   "description": "QuickPe Digital Wallet - Full Stack Application",
+  "type": "module",
   "scripts": {
+    "quickpe": "node scripts/start-simple.js",
+    "start": "node scripts/start-simple.js",
+    "validate": "node scripts/validate-components.js",
+    "fix-imports": "node scripts/fix-router-imports.js",
+    "fix-icons": "node scripts/fix-icon-imports.js",
+    "fix-duplicates": "node scripts/fix-duplicate-imports.js",
     "build": "cd frontend && npm install && npm run build",
+    "build:prod": "node scripts/optimize-build.js",
+    "build:analyze": "cd frontend && npm run build:analyze",
     "dev": "cd frontend && npm run dev",
-    "start": "cd frontend && npm run preview"
+    "dev:backend": "cd backend && npm run dev",
+    "dev:full": "concurrently \"npm run dev:backend\" \"npm run dev\"",
+    "preview": "cd frontend && npm run preview",
+    "lint": "cd frontend && npm run lint",
+    "lint:fix": "cd frontend && npm run lint:fix",
+    "perf": "cd frontend && npm run perf",
+    "analyze": "cd frontend && npm run analyze"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -13,6 +28,9 @@
     "mongoose": "^8.18.1",
     "nodemailer": "^6.10.1",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=18.0.0"

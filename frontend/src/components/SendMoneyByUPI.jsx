@@ -1,7 +1,8 @@
+import { useNavigate } from 'react-router-dom';
 import { useState } from "react";
 import apiClient from "../services/api/client";
 import { TransactionAnimation } from "./TransactionAnimation";
-import { useNavigate } from "react-router-dom";
+
 import { Button } from "./Button";
 
 export const SendMoneyByUPI = () => {

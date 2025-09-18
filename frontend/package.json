@@ -6,8 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:analyze": "vite build && npx vite-bundle-analyzer dist/stats.html",
+    "build:prod": "node ../scripts/optimize-build.js",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --ext js,jsx --fix",
+    "preview": "vite preview",
+    "analyze": "npx vite-bundle-analyzer",
+    "perf": "npm run build && npx lighthouse http://localhost:4173 --output=json --output-path=./lighthouse-report.json"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
@@ -42,8 +47,10 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "postcss": "^8.4.33",
+    "rollup-plugin-visualizer": "^5.12.0",
     "tailwindcss": "^3.4.1",
     "terser": "^5.19.2",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vite-bundle-analyzer": "^0.7.0"
   }
 }

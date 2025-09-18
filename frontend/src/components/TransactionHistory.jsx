@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import apiClient from "../services/api/client";
-import { SkeletonLoader } from "./SkeletonLoader";
+import { PageSkeleton } from "./PageSkeleton";
 import { PDFStatement } from './PDFStatement';
 
 export const TransactionHistory = ({ 
@@ -285,7 +285,7 @@ export const TransactionHistory = ({
         return (
             <div className="space-y-4">
                 {loading ? (
-                    <SkeletonLoader />
+                    <PageSkeleton layout="transaction-history" />
                 ) : transactions.length === 0 ? (
                     <div className="text-center py-8">
                         <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -450,7 +450,7 @@ export const TransactionHistory = ({
             </div>
 
             {loading ? (
-                <SkeletonLoader />
+                <PageSkeleton layout="transaction-history" />
             ) : transactions.length === 0 ? (
                 <div className="bg-white shadow overflow-hidden sm:rounded-lg">
                     <div className="px-4 py-12 sm:px-6 text-center">

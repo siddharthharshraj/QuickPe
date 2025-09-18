@@ -11,8 +11,7 @@ import {
   ChevronRightIcon
 } from "@heroicons/react/24/outline";
 import apiClient from "../services/api/client";
-import { SkeletonLoader } from "./SkeletonLoader";
-import { TransactionSkeleton } from "./TransactionSkeleton";
+import { PageSkeleton } from "./PageSkeleton";
 import { useSocket } from '../sockets/useSocket';
 import { useExportData } from '../hooks/useExportData';
 import { useTransactionIntegrity } from '../hooks/useTransactionIntegrity';
@@ -470,7 +469,7 @@ export const UnifiedTransactionHistory = () => {
   );
 
   if (loading) {
-    return <TransactionSkeleton />;
+    return <PageSkeleton layout="transaction-history" />;
   }
 
   return (

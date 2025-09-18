@@ -1,10 +1,10 @@
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { EyeIcon, EyeSlashIcon, EnvelopeIcon, LockClosedIcon, UserIcon, UserGroupIcon } from "@heroicons/react/24/outline"
 import { Footer } from "../components/Footer"
 import QuickPeLogo from "../components/QuickPeLogo"
 import apiClient from "../services/api/client.js";
-import { useNavigate, Link } from "react-router-dom"
 
 export const Signin = () => {
     const [username, setUsername] = useState("");

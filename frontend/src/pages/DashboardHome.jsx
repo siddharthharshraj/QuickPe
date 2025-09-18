@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { driver } from 'driver.js';
+import { motion } from 'framer-motion';
 import { 
-  ChartBarIcon, 
-  CurrencyRupeeIcon, 
-  ArrowTrendingUpIcon,
+  BanknotesIcon, 
+  ArrowTrendingUpIcon, 
   ArrowTrendingDownIcon,
-  ClockIcon,
   UserGroupIcon,
-  BanknotesIcon,
+  ClockIcon,
   PlusIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  ChartBarIcon,
+  CurrencyRupeeIcon
 } from '@heroicons/react/24/outline';
+import { useDebounce, useOptimizedCallback, useMemoizedCalculation } from '../utils/performance';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { Balance } from '../components/Balance';

@@ -40,7 +40,7 @@ In today's fast-paced digital world, traditional payment methods are slow and cu
 - bcrypt password hashing with salt rounds (10+ rounds)
 - Input validation and sanitization using Zod schemas
 - CORS protection and API rate limiting
-- XSS and SQL injection attack prevention
+- Helmet security headers
 - Role-based access control (User/Admin)
 - Secure session management
 
