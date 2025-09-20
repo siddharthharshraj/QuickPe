@@ -1,23 +1,59 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { adminMiddleware } = require('../middleware/index');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const TradeJournal = require('../models/TradeJournal');
+const FeatureFlag = require('../models/FeatureFlag');
 
 const router = express.Router();
 
-// Get all users (admin only)
+// ============= USER MANAGEMENT =============
+
+// Get all users with pagination and search
 router.get('/users', adminMiddleware, async (req, res) => {
     try {
-        const users = await User.find({})
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const status = req.query.status || 'all';
+        const skip = (page - 1) * limit;
+
+        let query = {};
+        
+        if (search) {
+            query.$or = [
+                { firstName: { $regex: search, $options: 'i' } },
+                { lastName: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } },
+                { quickpeId: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        if (status !== 'all') {
+            query.isActive = status === 'active';
+        }
+
+        const users = await User.find(query)
             .select('-password')
             .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
             .lean();
+
+        const total = await User.countDocuments(query);
 
         res.json({
             success: true,
-            users: users
+            users,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
         });
     } catch (error) {
         console.error('Error fetching users:', error);
@@ -28,52 +64,71 @@ router.get('/users', adminMiddleware, async (req, res) => {
     }
 });
 
-// Get all transactions (admin only)
-router.get('/transactions', adminMiddleware, async (req, res) => {
+// Get user details by ID
+router.get('/users/:id', adminMiddleware, async (req, res) => {
     try {
-        const transactions = await Transaction.find({})
+        const user = await User.findById(req.params.id)
+            .select('-password')
+            .lean();
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Get user's transaction stats
+        const transactionStats = await Transaction.aggregate([
+            { $match: { $or: [{ from: user._id }, { to: user._id }] } },
+            {
+                $group: {
+                    _id: null,
+                    totalTransactions: { $sum: 1 },
+                    totalSent: {
+                        $sum: {
+                            $cond: [{ $eq: ['$from', user._id] }, '$amount', 0]
+                        }
+                    },
+                    totalReceived: {
+                        $sum: {
+                            $cond: [{ $eq: ['$to', user._id] }, '$amount', 0]
+                        }
+                    },
+                    completedTransactions: {
+                        $sum: {
+                            $cond: [{ $eq: ['$status', 'completed'] }, 1, 0]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        // Get recent transactions
+        const recentTransactions = await Transaction.find({
+            $or: [{ from: user._id }, { to: user._id }]
+        })
             .populate('from', 'firstName lastName email quickpeId')
             .populate('to', 'firstName lastName email quickpeId')
             .sort({ createdAt: -1 })
-            .limit(100)
+            .limit(10)
             .lean();
 
         res.json({
             success: true,
-            transactions: transactions
-        });
-    } catch (error) {
-        console.error('Error fetching transactions:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error'
-        });
-    }
-});
-
-// Get admin stats
-router.get('/stats', adminMiddleware, async (req, res) => {
-    try {
-        const [userCount, transactionCount, totalAmount, activeUsers] = await Promise.all([
-            User.countDocuments({}),
-            Transaction.countDocuments({}),
-            Transaction.aggregate([
-                { $group: { _id: null, total: { $sum: '$amount' } } }
-            ]),
-            User.countDocuments({ isActive: { $ne: false } })
-        ]);
-
-        res.json({
-            success: true,
-            stats: {
-                totalUsers: userCount,
-                totalTransactions: transactionCount,
-                totalAmount: totalAmount[0]?.total || 0,
-                activeUsers: activeUsers
+            user: {
+                ...user,
+                stats: transactionStats[0] || {
+                    totalTransactions: 0,
+                    totalSent: 0,
+                    totalReceived: 0,
+                    completedTransactions: 0
+                },
+                recentTransactions
             }
         });
     } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error('Error fetching user details:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -81,63 +136,64 @@ router.get('/stats', adminMiddleware, async (req, res) => {
     }
 });
 
-// Create new user (admin only)
+// Create new user
 router.post('/users', adminMiddleware, async (req, res) => {
     try {
-        const { firstName, lastName, email, phone, password, balance = 0 } = req.body;
+        const { firstName, lastName, email, phone, password, balance, role } = req.body;
 
-        // Validate required fields
-        if (!firstName || !lastName || !email || !phone || !password) {
+        // Validation
+        if (!firstName || !lastName || !email || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'All fields are required'
+                message: 'All required fields must be provided'
             });
         }
 
         // Check if user already exists
-        const existingUser = await User.findOne({ 
-            $or: [{ email }, { phone }] 
-        });
-
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
-            return res.status(400).json({
+            return res.status(409).json({
                 success: false,
-                message: 'User with this email or phone already exists'
+                message: 'User with this email already exists'
             });
         }
 
-        // Hash password
-        const salt = await bcrypt.genSalt(12);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        // Generate QuickPe ID
-        const quickpeId = `QP${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
         // Create user
-        const newUser = new User({
+        const user = new User({
             firstName,
             lastName,
-            email,
-            phone,
-            password: hashedPassword,
-            quickpeId,
-            balance: parseFloat(balance),
-            isVerified: true,
-            role: 'user'
+            username: `${firstName.toLowerCase()}.${lastName.toLowerCase()}`,
+            email: email.toLowerCase(),
+            phone: phone || `+91${Math.floor(Math.random() * 9000000000) + 1000000000}`,
+            password,
+            balance: balance || 0,
+            role: role || 'user',
+            isActive: true
         });
 
-        await newUser.save();
+        await user.generateQuickPeId();
+        await user.save();
+
+        // Create corresponding Account record
+        const Account = require('../models/Account');
+        const account = new Account({
+            userId: user._id,
+            balance: user.balance
+        });
+        await account.save();
 
         res.status(201).json({
             success: true,
             message: 'User created successfully',
             user: {
-                id: newUser._id,
-                firstName: newUser.firstName,
-                lastName: newUser.lastName,
-                email: newUser.email,
-                quickpeId: newUser.quickpeId,
-                balance: newUser.balance
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                quickpeId: user.quickpeId,
+                balance: user.balance,
+                role: user.role,
+                isActive: user.isActive
             }
         });
     } catch (error) {
@@ -149,22 +205,12 @@ router.post('/users', adminMiddleware, async (req, res) => {
     }
 });
 
-// Update user (admin only)
-router.patch('/users/:userId', adminMiddleware, async (req, res) => {
+// Update user
+router.put('/users/:id', adminMiddleware, async (req, res) => {
     try {
-        const { userId } = req.params;
-        const updates = req.body;
+        const { firstName, lastName, email, phone, balance, role, isActive } = req.body;
 
-        // Don't allow updating password through this endpoint
-        delete updates.password;
-        delete updates.role; // Prevent role escalation
-
-        const user = await User.findByIdAndUpdate(
-            userId,
-            { $set: updates },
-            { new: true, select: '-password' }
-        );
-
+        const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -172,10 +218,40 @@ router.patch('/users/:userId', adminMiddleware, async (req, res) => {
             });
         }
 
+        // Update fields
+        if (firstName) user.firstName = firstName;
+        if (lastName) user.lastName = lastName;
+        if (email) user.email = email.toLowerCase();
+        if (phone) user.phone = phone;
+        if (balance !== undefined) user.balance = balance;
+        if (role) user.role = role;
+        if (isActive !== undefined) user.isActive = isActive;
+
+        await user.save();
+
+        // Update Account balance if changed
+        if (balance !== undefined) {
+            const Account = require('../models/Account');
+            await Account.findOneAndUpdate(
+                { userId: user._id },
+                { balance },
+                { upsert: true }
+            );
+        }
+
         res.json({
             success: true,
             message: 'User updated successfully',
-            user: user
+            user: {
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                quickpeId: user.quickpeId,
+                balance: user.balance,
+                role: user.role,
+                isActive: user.isActive
+            }
         });
     } catch (error) {
         console.error('Error updating user:', error);
@@ -186,18 +262,19 @@ router.patch('/users/:userId', adminMiddleware, async (req, res) => {
     }
 });
 
-// Toggle user status (admin only)
-router.patch('/users/:userId/status', adminMiddleware, async (req, res) => {
+// Reset user password
+router.post('/users/:id/reset-password', adminMiddleware, async (req, res) => {
     try {
-        const { userId } = req.params;
-        const { isActive } = req.body;
+        const { newPassword } = req.body;
 
-        const user = await User.findByIdAndUpdate(
-            userId,
-            { $set: { isActive: isActive } },
-            { new: true, select: '-password' }
-        );
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters long'
+            });
+        }
 
+        const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -205,13 +282,15 @@ router.patch('/users/:userId/status', adminMiddleware, async (req, res) => {
             });
         }
 
+        user.password = newPassword;
+        await user.save();
+
         res.json({
             success: true,
-            message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
-            user: user
+            message: 'Password reset successfully'
         });
     } catch (error) {
-        console.error('Error updating user status:', error);
+        console.error('Error resetting password:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -219,13 +298,10 @@ router.patch('/users/:userId/status', adminMiddleware, async (req, res) => {
     }
 });
 
-// Delete user (admin only)
-router.delete('/users/:userId', adminMiddleware, async (req, res) => {
+// Delete user
+router.delete('/users/:id', adminMiddleware, async (req, res) => {
     try {
-        const { userId } = req.params;
-
-        // Check if user is admin
-        const user = await User.findById(userId);
+        const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -233,20 +309,19 @@ router.delete('/users/:userId', adminMiddleware, async (req, res) => {
             });
         }
 
-        if (user.role === 'admin') {
-            return res.status(400).json({
+        // Don't allow deleting admin users
+        if (user.isAdmin || user.role === 'admin') {
+            return res.status(403).json({
                 success: false,
-                message: 'Cannot delete admin user'
+                message: 'Cannot delete admin users'
             });
         }
 
-        // Delete user's transactions first
-        await Transaction.deleteMany({
-            $or: [{ from: userId }, { to: userId }]
-        });
+        await User.findByIdAndDelete(req.params.id);
 
-        // Delete user
-        await User.findByIdAndDelete(userId);
+        // Also delete associated Account
+        const Account = require('../models/Account');
+        await Account.findOneAndDelete({ userId: req.params.id });
 
         res.json({
             success: true,
@@ -261,33 +336,22 @@ router.delete('/users/:userId', adminMiddleware, async (req, res) => {
     }
 });
 
-// Export users as CSV (admin only)
-router.get('/users/export/csv', adminMiddleware, async (req, res) => {
+// ============= FEATURE FLAGS =============
+
+// Get all feature flags
+router.get('/feature-flags', adminMiddleware, async (req, res) => {
     try {
-        const users = await User.find({})
-            .select('-password')
-            .sort({ createdAt: -1 })
-            .lean();
+        const flags = await FeatureFlag.find({})
+            .populate('createdBy', 'firstName lastName email')
+            .populate('lastModifiedBy', 'firstName lastName email')
+            .sort({ createdAt: -1 });
 
-        const csvHeader = 'Name,Email,QuickPe ID,Balance,Status,Created At\n';
-        const csvData = users.map(user => {
-            const name = `${user.firstName} ${user.lastName}`;
-            const email = user.email;
-            const quickpeId = user.quickpeId || 'N/A';
-            const balance = user.balance || 0;
-            const status = user.isActive !== false ? 'Active' : 'Inactive';
-            const createdAt = new Date(user.createdAt).toLocaleDateString();
-            
-            return `"${name}","${email}","${quickpeId}",${balance},"${status}","${createdAt}"`;
-        }).join('\n');
-
-        const csv = csvHeader + csvData;
-
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename=quickpe-users-${new Date().toISOString().split('T')[0]}.csv`);
-        res.send(csv);
+        res.json({
+            success: true,
+            flags
+        });
     } catch (error) {
-        console.error('Error exporting users:', error);
+        console.error('Error fetching feature flags:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -295,88 +359,229 @@ router.get('/users/export/csv', adminMiddleware, async (req, res) => {
     }
 });
 
-// Get analytics data (admin only)
+// Create feature flag
+router.post('/feature-flags', adminMiddleware, async (req, res) => {
+    try {
+        const { name, description, isEnabled, enabledForRoles } = req.body;
+
+        const flag = new FeatureFlag({
+            name,
+            description,
+            isEnabled: isEnabled || false,
+            enabledForRoles: enabledForRoles || [],
+            createdBy: req.userId
+        });
+
+        await flag.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Feature flag created successfully',
+            flag
+        });
+    } catch (error) {
+        console.error('Error creating feature flag:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
+// Update feature flag
+router.put('/feature-flags/:id', adminMiddleware, async (req, res) => {
+    try {
+        const { isEnabled, enabledForUsers, disabledForUsers, enabledForRoles } = req.body;
+
+        const flag = await FeatureFlag.findByIdAndUpdate(
+            req.params.id,
+            {
+                isEnabled,
+                enabledForUsers,
+                disabledForUsers,
+                enabledForRoles,
+                lastModifiedBy: req.userId
+            },
+            { new: true }
+        );
+
+        if (!flag) {
+            return res.status(404).json({
+                success: false,
+                message: 'Feature flag not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Feature flag updated successfully',
+            flag
+        });
+    } catch (error) {
+        console.error('Error updating feature flag:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
+// ============= ANALYTICS =============
+
+// Get comprehensive analytics
 router.get('/analytics', adminMiddleware, async (req, res) => {
     try {
-        const [
-            totalUsers,
-            totalTransactions,
-            totalAmount,
-            activeUsers,
-            recentTransactions,
-            userGrowth,
-            transactionVolume
-        ] = await Promise.all([
-            User.countDocuments({}),
-            Transaction.countDocuments({}),
-            Transaction.aggregate([
-                { $group: { _id: null, total: { $sum: '$amount' } } }
-            ]),
-            User.countDocuments({ isActive: { $ne: false } }),
-            Transaction.find({})
-                .populate('userId', 'firstName lastName email')
-                .sort({ timestamp: -1 })
-                .limit(10)
-                .lean(),
-            User.aggregate([
-                {
-                    $group: {
-                        _id: {
-                            year: { $year: '$createdAt' },
-                            month: { $month: '$createdAt' }
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        // User analytics
+        const userStats = await User.aggregate([
+            {
+                $facet: {
+                    totalUsers: [{ $count: "count" }],
+                    activeUsers: [
+                        { $match: { isActive: true } },
+                        { $count: "count" }
+                    ],
+                    userGrowth: [
+                        {
+                            $group: {
+                                _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                                newUsers: { $sum: 1 }
+                            }
                         },
-                        count: { $sum: 1 }
-                    }
-                },
-                { $sort: { '_id.year': -1, '_id.month': -1 } },
-                { $limit: 6 }
-            ]),
-            Transaction.aggregate([
-                {
-                    $group: {
-                        _id: {
-                            year: { $year: '$timestamp' },
-                            month: { $month: '$timestamp' }
+                        { $sort: { _id: 1 } },
+                        { $limit: 30 }
+                    ],
+                    usersByRole: [
+                        {
+                            $group: {
+                                _id: '$role',
+                                count: { $sum: 1 }
+                            }
+                        }
+                    ]
+                }
+            }
+        ]);
+
+        // Transaction analytics
+        const transactionStats = await Transaction.aggregate([
+            {
+                $facet: {
+                    totalTransactions: [{ $count: "count" }],
+                    completedTransactions: [
+                        { $match: { status: 'completed' } },
+                        { $count: "count" }
+                    ],
+                    totalVolume: [
+                        { $match: { status: 'completed' } },
+                        {
+                            $group: {
+                                _id: null,
+                                total: { $sum: '$amount' }
+                            }
+                        }
+                    ],
+                    dailyVolume: [
+                        {
+                            $match: {
+                                createdAt: { $gte: thirtyDaysAgo },
+                                status: 'completed'
+                            }
                         },
-                        volume: { $sum: '$amount' },
-                        count: { $sum: 1 }
-                    }
-                },
-                { $sort: { '_id.year': -1, '_id.month': -1 } },
-                { $limit: 6 }
-            ])
+                        {
+                            $group: {
+                                _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                                volume: { $sum: '$amount' },
+                                count: { $sum: 1 }
+                            }
+                        },
+                        { $sort: { _id: 1 } }
+                    ],
+                    topUsers: [
+                        {
+                            $match: {
+                                createdAt: { $gte: thirtyDaysAgo },
+                                status: 'completed'
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: '$from',
+                                totalSent: { $sum: '$amount' },
+                                transactionCount: { $sum: 1 }
+                            }
+                        },
+                        { $sort: { totalSent: -1 } },
+                        { $limit: 10 },
+                        {
+                            $lookup: {
+                                from: 'users',
+                                localField: '_id',
+                                foreignField: '_id',
+                                as: 'user'
+                            }
+                        }
+                    ]
+                }
+            }
+        ]);
+
+        // Trade journal analytics (if enabled)
+        const tradeStats = await TradeJournal.aggregate([
+            {
+                $facet: {
+                    totalTrades: [{ $count: "count" }],
+                    profitableTrades: [
+                        { $match: { pnl: { $gt: 0 } } },
+                        { $count: "count" }
+                    ],
+                    totalPnL: [
+                        {
+                            $group: {
+                                _id: null,
+                                total: { $sum: '$pnl' }
+                            }
+                        }
+                    ],
+                    topSymbols: [
+                        {
+                            $group: {
+                                _id: '$symbol',
+                                count: { $sum: 1 },
+                                totalPnL: { $sum: '$pnl' }
+                            }
+                        },
+                        { $sort: { count: -1 } },
+                        { $limit: 10 }
+                    ]
+                }
+            }
         ]);
 
         const analytics = {
-            overview: {
-                totalUsers,
-                totalTransactions,
-                totalAmount: totalAmount[0]?.total || 0,
-                activeUsers,
-                averageTransactionAmount: totalTransactions > 0 ? (totalAmount[0]?.total || 0) / totalTransactions : 0
+            users: {
+                total: userStats[0].totalUsers[0]?.count || 0,
+                active: userStats[0].activeUsers[0]?.count || 0,
+                growth: userStats[0].userGrowth,
+                byRole: userStats[0].usersByRole
             },
-            recentActivity: recentTransactions.map(tx => ({
-                id: tx._id,
-                transactionId: tx.transactionId,
-                user: tx.userId ? `${tx.userId.firstName} ${tx.userId.lastName}` : 'Unknown User',
-                userEmail: tx.userId?.email || tx.userEmail || 'N/A',
-                amount: tx.amount,
-                type: tx.type,
-                status: tx.status,
-                category: tx.category,
-                description: tx.description,
-                recipient: tx.recipient,
-                createdAt: tx.timestamp || tx.createdAt
-            })),
-            userGrowth: userGrowth.map(item => ({
-                month: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
-                users: item.count
-            })),
-            transactionVolume: transactionVolume.map(item => ({
-                month: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
-                volume: item.volume,
-                count: item.count
-            }))
+            transactions: {
+                total: transactionStats[0].totalTransactions[0]?.count || 0,
+                completed: transactionStats[0].completedTransactions[0]?.count || 0,
+                totalVolume: transactionStats[0].totalVolume[0]?.total || 0,
+                dailyVolume: transactionStats[0].dailyVolume,
+                topUsers: transactionStats[0].topUsers
+            },
+            trades: {
+                total: tradeStats[0].totalTrades[0]?.count || 0,
+                profitable: tradeStats[0].profitableTrades[0]?.count || 0,
+                totalPnL: tradeStats[0].totalPnL[0]?.total || 0,
+                topSymbols: tradeStats[0].topSymbols
+            },
+            generatedAt: new Date().toISOString()
         };
 
         res.json({
@@ -392,73 +597,38 @@ router.get('/analytics', adminMiddleware, async (req, res) => {
     }
 });
 
-// Get feature flags (admin only)
-router.get('/feature-flags', adminMiddleware, async (req, res) => {
+// Get trade analytics for AI assistant
+router.get('/trade-analytics', adminMiddleware, async (req, res) => {
     try {
-        // Mock feature flags data - in production, this would come from a database
-        const featureFlags = [
+        const TradeJournal = require('../models/TradeJournal');
+        
+        const tradeStats = await TradeJournal.aggregate([
             {
-                id: 'trade-journal',
-                name: 'Trade Journal',
-                description: 'Enable advanced trading journal functionality',
-                enabled: true,
-                category: 'Trading',
-                createdAt: new Date('2024-01-01'),
-                updatedAt: new Date()
-            },
-            {
-                id: 'ai-assistant',
-                name: 'AI Assistant',
-                description: 'Enable AI-powered financial assistant',
-                enabled: true,
-                category: 'AI',
-                createdAt: new Date('2024-01-15'),
-                updatedAt: new Date()
-            },
-            {
-                id: 'advanced-analytics',
-                name: 'Advanced Analytics',
-                description: 'Enable comprehensive analytics dashboard',
-                enabled: true,
-                category: 'Analytics',
-                createdAt: new Date('2024-02-01'),
-                updatedAt: new Date()
-            },
-            {
-                id: 'real-time-notifications',
-                name: 'Real-time Notifications',
-                description: 'Enable real-time push notifications',
-                enabled: true,
-                category: 'Notifications',
-                createdAt: new Date('2024-02-15'),
-                updatedAt: new Date()
-            },
-            {
-                id: 'market-data-widget',
-                name: 'Market Data Widget',
-                description: 'Enable live market data integration',
-                enabled: true,
-                category: 'Market Data',
-                createdAt: new Date('2024-03-01'),
-                updatedAt: new Date()
-            },
-            {
-                id: 'premium-features',
-                name: 'Premium Features',
-                description: 'Enable premium subscription features',
-                enabled: false,
-                category: 'Subscription',
-                createdAt: new Date('2024-03-15'),
-                updatedAt: new Date()
+                $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    profitable: { $sum: { $cond: [{ $gt: ['$pnl', 0] }, 1, 0] } },
+                    totalPnL: { $sum: '$pnl' },
+                    totalInvested: { $sum: { $multiply: ['$entryPrice', '$quantity'] } },
+                    avgHoldingPeriod: { $avg: '$holdingPeriod' }
+                }
             }
-        ];
+        ]);
+
+        const stats = tradeStats[0] || {
+            total: 0,
+            profitable: 0,
+            totalPnL: 0,
+            totalInvested: 0,
+            avgHoldingPeriod: 0
+        };
 
         res.json({
             success: true,
-            flags: featureFlags
+            trades: stats
         });
     } catch (error) {
-        console.error('Error fetching feature flags:', error);
+        console.error('Error fetching trade analytics:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -466,25 +636,44 @@ router.get('/feature-flags', adminMiddleware, async (req, res) => {
     }
 });
 
-// Update feature flag (admin only)
-router.put('/feature-flags/:id', adminMiddleware, async (req, res) => {
+// Export analytics data
+router.get('/analytics/export', adminMiddleware, async (req, res) => {
     try {
-        const { id } = req.params;
-        const { enabled } = req.body;
+        const format = req.query.format || 'json';
+        
+        // Get comprehensive data
+        const users = await User.find({}).select('-password').lean();
+        const transactions = await Transaction.find({})
+            .populate('from', 'firstName lastName email')
+            .populate('to', 'firstName lastName email')
+            .lean();
+        const trades = await TradeJournal.find({})
+            .populate('userId', 'firstName lastName email')
+            .lean();
 
-        // In production, this would update the database
-        // For now, just return success
-        res.json({
-            success: true,
-            message: `Feature flag ${id} updated successfully`,
-            flag: {
-                id,
-                enabled,
-                updatedAt: new Date()
-            }
-        });
+        const exportData = {
+            users,
+            transactions,
+            trades,
+            exportedAt: new Date().toISOString(),
+            exportedBy: req.userId
+        };
+
+        if (format === 'csv') {
+            // Convert to CSV format (simplified)
+            const csv = require('json2csv');
+            const usersCsv = csv.parse(users);
+            
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=quickpe-analytics.csv');
+            res.send(usersCsv);
+        } else {
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', 'attachment; filename=quickpe-analytics.json');
+            res.json(exportData);
+        }
     } catch (error) {
-        console.error('Error updating feature flag:', error);
+        console.error('Error exporting analytics:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error'

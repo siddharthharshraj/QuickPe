@@ -12,7 +12,8 @@ import {
   ChartBarIcon,
   ChevronDownIcon,
   ShieldCheckIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ServerIcon
 } from '@heroicons/react/24/outline';
 import { NotificationSystem } from './NotificationSystem';
 import QuickPeLogo from './QuickPeLogo';
@@ -91,6 +92,7 @@ export const Header = () => {
         { name: 'Trade Journal', href: '/trade-journal', icon: DocumentTextIcon, authRequired: true },
         { name: 'AI Assistant', href: '/ai-assistant', icon: Cog6ToothIcon, authRequired: true },
         { name: 'Admin Panel', href: '/admin', icon: ShieldCheckIcon, authRequired: true, adminOnly: true },
+        { name: 'System Logs', href: '/logs', icon: ServerIcon, authRequired: true, adminOnly: true },
     ];
 
     return (

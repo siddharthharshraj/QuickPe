@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const { connectDB } = require('./services/db');
+const databaseConfig = require('./config/database');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
@@ -14,13 +14,13 @@ const userRoutes = require('./routes/user');
 const accountRoutes = require('./routes/account');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
-const adminNewRoutes = require('./routes/adminNew');
 const tradeJournalRoutes = require('./routes/tradeJournal');
 const initializeRoutes = require('./routes/initialize');
 const analyticsRoutes = require('./routes/analytics');
 const analyticsComprehensiveRoutes = require('./routes/analytics-comprehensive');
-const contactRoutes = require('./routes/contact');
+// const contactRoutes = require('./routes/contact');
 const aiAssistantRoutes = require('./routes/ai-assistant');
+const logsRoutes = require('./routes/logs');
 
 // Load environment variables
 dotenv.config();
@@ -147,14 +147,40 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Health check routes
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: Math.round(process.uptime()),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0'
+  });
+});
+
+app.get('/api/v1/status', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'QuickPe API is running',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // API Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/account', accountRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/analytics-comprehensive', analyticsComprehensiveRoutes);
 app.use('/api/v1/audit', require('./routes/audit'));
 app.use('/api/v1/notifications', require('./routes/notifications'));
 app.use('/api/v1/trade-journal', tradeJournalRoutes);
+// app.use('/api/v1/contact', contactRoutes);
+app.use('/api/v1/ai-assistant', aiAssistantRoutes);
+app.use('/api/logs', logsRoutes);
 
 // Public market data endpoint
 app.get('/api/v1/market-data', (req, res) => {
@@ -199,12 +225,6 @@ app.get('/api/v1/market-data', (req, res) => {
     }
 });
 
-app.use('/api/v1/analytics', analyticsRoutes);
-app.use('/api/v1/analytics-comprehensive', require('./routes/analytics-comprehensive'));
-app.use('/api/v1/ai-assistant', aiAssistantRoutes);
-app.use('/api/v1/notifications', require('./routes/notifications'));
-app.use('/api/v1/audit', require('./routes/audit'));
-app.use('/api/v1/user', require('./routes/user'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -249,8 +269,7 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     // Connect to MongoDB
-    await connectDB();
-    console.log('✅ Connected to MongoDB');
+    await databaseConfig.connect();
     
     // Socket.IO connection handling with enhanced logging and JWT authentication
     io.on('connection', (socket) => {

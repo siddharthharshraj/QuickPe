@@ -18,7 +18,7 @@ import { Footer } from '../components/Footer';
 import { Balance } from '../components/Balance';
 import { LogoLoader } from '../components/LogoLoader';
 import { PageSkeleton } from '../components/PageSkeleton';
-import { useSocketCache } from '../hooks/useSocketCache';
+import { useSocket } from '../sockets/useSocket';
 import AuditTrailPreview from '../components/AuditTrailPreview';
 import apiClient from '../services/api/client';
 
@@ -35,9 +35,14 @@ export const DashboardHome = () => {
   const [showLogoLoader, setShowLogoLoader] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState(null);
 
-  // Initialize socket cache for real-time updates
-  useSocketCache();
+  // Initialize socket for real-time updates
+  const { socket, isConnected } = useSocket(userId, (notification) => {
+    console.log('Dashboard received notification:', notification);
+    // Refresh dashboard data when notifications arrive
+    fetchDashboardData();
+  });
 
   useEffect(() => {
     // Listen for real-time transaction updates
@@ -156,6 +161,7 @@ export const DashboardHome = () => {
       if (user) {
         const userData = JSON.parse(user);
         setUserName(userData.firstName || 'User');
+        setUserId(userData.id);
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -165,33 +171,30 @@ export const DashboardHome = () => {
   const fetchDashboardData = async () => {
     console.log('fetchDashboardData called');
     try {
-      // Fetch balance and transactions separately with delays to avoid rate limiting
-      const balanceRes = await apiClient.get('/account/balance');
-      await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
-      const transactionsRes = await apiClient.get('/account/transactions?limit=5');
+      // Fetch balance and analytics data for accurate stats
+      const [balanceRes, analyticsRes, transactionsRes] = await Promise.all([
+        apiClient.get('/account/balance'),
+        apiClient.get('/analytics/overview'),
+        apiClient.get('/account/transactions?limit=5')
+      ]);
 
       console.log('Dashboard balance fetch:', balanceRes.data);
-      const currentBalance = balanceRes.data.balance || 0;
+      console.log('Dashboard analytics fetch:', analyticsRes.data);
       
-      // Calculate real stats from transactions
+      const currentBalance = balanceRes.data.balance || 0;
+      const analytics = analyticsRes.data.overview || {};
       const transactions = transactionsRes.data.transactions || [];
-      const totalSent = transactions
-        .filter(t => t.type === 'debit' || t.category === 'Transfer')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
-      const totalReceived = transactions
-        .filter(t => t.type === 'credit' || t.category === 'Deposit')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
       
       const newStats = {
-        totalBalance: currentBalance,
-        totalTransactions: transactions.length,
-        totalSent: totalSent,
-        totalReceived: totalReceived,
+        totalBalance: analytics.currentBalance || currentBalance,
+        totalTransactions: analytics.transactionCount || transactions.length,
+        totalSent: analytics.totalSpending || 0,
+        totalReceived: analytics.totalIncome || 0,
         recentTransactions: transactions
       };
       
       setStats(newStats);
-      console.log('Updated stats:', newStats);
+      console.log('Updated stats from analytics:', newStats);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       // Set default values on error

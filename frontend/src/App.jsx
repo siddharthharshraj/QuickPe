@@ -37,6 +37,7 @@ import {
   LazyAdminDashboard,
   LazyTradeJournal,
   LazySettings,
+  LazyLogViewer,
   LazyNotFound,
   DashboardSkeleton,
   FormSkeleton,
@@ -161,6 +162,13 @@ function App() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardSkeleton />}>
                 <LazySettings />
+              </Suspense>
+            </ProtectedRoute>
+          } />
+          <Route path="/logs" element={
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyLogViewer />
               </Suspense>
             </ProtectedRoute>
           } />

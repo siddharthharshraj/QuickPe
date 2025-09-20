@@ -371,4 +371,98 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
     }
 });
 
+// GET /api/v1/analytics/overview - Get analytics overview
+router.get("/overview", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Get user's current balance from User model
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Get all transactions for this user
+    const transactions = await Transaction.find({
+      $or: [
+        { userId: userId },
+        { receiverId: userId }
+      ]
+    });
+
+    let totalSpending = 0;
+    let totalIncome = 0;
+
+    transactions.forEach(transaction => {
+      const amount = Number(transaction.amount) || 0;
+      
+      // If user is the sender (debit transaction)
+      if (transaction.userId.toString() === userId.toString()) {
+        if (transaction.category === 'deposit' || transaction.type === 'credit') {
+          totalIncome += amount;
+        } else {
+          totalSpending += amount;
+        }
+      }
+      // If user is the receiver (credit transaction)
+      else if (transaction.receiverId && transaction.receiverId.toString() === userId.toString()) {
+        totalIncome += amount;
+      }
+    });
+
+    const currentBalance = Number(user.balance) || 0;
+    const netFlow = totalIncome - totalSpending;
+
+    res.json({
+      success: true,
+      overview: {
+        currentBalance,
+        totalSpending,
+        totalIncome,
+        netFlow,
+        transactionCount: transactions.length
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching analytics overview:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch analytics overview"
+    });
+  }
+});
+
+
+// GET /api/v1/analytics/summary - Get analytics summary for health check
+router.get("/summary", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // Get basic analytics summary
+    const transactions = await Transaction.find({ 
+      $or: [{ userId }, { receiverId: userId }] 
+    }).limit(100);
+
+    const summary = {
+      totalTransactions: transactions.length,
+      recentActivity: transactions.length > 0,
+      status: "active",
+      lastUpdated: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      data: summary
+    });
+  } catch (error) {
+    console.error("Error fetching analytics summary:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+});
 module.exports = router;

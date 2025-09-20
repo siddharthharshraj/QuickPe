@@ -342,4 +342,28 @@ router.put('/change-password', authMiddleware, async (req, res) => {
     }
 });
 
+// GET /api/v1/user/list - Get list of users for transfers
+router.get("/list", authMiddleware, async (req, res) => {
+  try {
+    const users = await User.find({}, {
+      firstName: 1,
+      lastName: 1,
+      email: 1,
+      quickpeId: 1,
+      _id: 0
+    }).sort({ firstName: 1 });
+
+    res.json({
+      success: true,
+      users: users
+    });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+});
+
 module.exports = router;

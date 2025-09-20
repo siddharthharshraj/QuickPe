@@ -63,6 +63,7 @@ export const LazyKPIReports = createSafeLazyComponent(() => import('../pages/KPI
 export const LazyAdminDashboard = createSafeLazyComponent(() => import('../pages/AdminDashboard'), 'AdminDashboard');
 export const LazyTradeJournal = createSafeLazyComponent(() => import('../pages/TradeJournalFixed'), 'TradeJournalFixed');
 export const LazySettings = createSafeLazyComponent(() => import('../pages/Settings'), 'Settings');
+export const LazyLogViewer = createSafeLazyComponent(() => import('../pages/LogViewer'), 'LogViewer');
 export const LazyNotFound = createSafeLazyComponent(() => import('../pages/NotFound'), 'NotFound');
 
 // Safe lazy load heavy components

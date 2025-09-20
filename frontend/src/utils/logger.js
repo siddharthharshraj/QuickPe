@@ -120,6 +120,9 @@ class Logger {
   }
 
   _sendToErrorService(message, error, context) {
+    // Send to backend logging system
+    this._sendToBackend('error', message, { error: error?.message || error, stack: error?.stack }, context);
+    
     // Mock implementation - replace with actual error reporting service
     const errorData = {
       message,
@@ -149,6 +152,45 @@ class Logger {
     };
 
     console.warn('Would send to security service:', securityData);
+  }
+
+  // Send logs to backend
+  async _sendToBackend(level, message, data = null, context = '') {
+    try {
+      // Only send important logs to backend to avoid spam
+      if (level === 'error' || level === 'warn' || context === 'SECURITY') {
+        const logData = {
+          level,
+          message: `[FRONTEND] ${message}`,
+          category: 'frontend',
+          context,
+          data: {
+            ...data,
+            url: window.location.href,
+            userAgent: navigator.userAgent,
+            userId: localStorage.getItem('userId'),
+            timestamp: new Date().toISOString()
+          }
+        };
+
+        // Use fetch to avoid circular dependency with api client
+        const token = localStorage.getItem('token');
+        if (token) {
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+          await fetch(`${apiUrl}/api/logs/frontend`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(logData)
+          });
+        }
+      }
+    } catch (error) {
+      // Silently fail to avoid infinite loops
+      console.warn('Failed to send log to backend:', error);
+    }
   }
 
   // Utility methods

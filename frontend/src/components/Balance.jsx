@@ -51,21 +51,23 @@ export const Balance = memo(({ onBalanceUpdate }) => {
             const response = await apiClient.post("/account/deposit", { amount });
             console.log('Add money response:', response.data);
             
-            if (response.data.balance !== undefined) {
-                setBalance(response.data.balance);
-                // Notify parent component about balance update
-                if (onBalanceUpdate) {
-                    onBalanceUpdate(response.data.balance);
-                }
-            } else {
-                // Fallback: refresh balance from server
-                const refreshResponse = await apiClient.get("/account/balance");
-                const refreshedBalance = refreshResponse.data.balance || 0;
-                setBalance(refreshedBalance);
-                if (onBalanceUpdate) {
-                    onBalanceUpdate(refreshedBalance);
-                }
+            // Always refresh balance from server after deposit
+            const refreshResponse = await apiClient.get("/account/balance");
+            const refreshedBalance = Number(refreshResponse.data.balance) || 0;
+            
+            setBalance(refreshedBalance);
+            
+            // Notify parent component about balance update
+            if (onBalanceUpdate) {
+                onBalanceUpdate(refreshedBalance);
             }
+            
+            // Emit custom event for real-time updates
+            window.dispatchEvent(new CustomEvent('balance:update', {
+                detail: { newBalance: refreshedBalance, userId: 'current' }
+            }));
+            
+            console.log('Balance updated successfully:', refreshedBalance);
         } catch (error) {
             console.error("Add money error:", error);
             if (error.response?.status === 429) {

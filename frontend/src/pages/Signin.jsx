@@ -72,16 +72,16 @@ export const Signin = () => {
             console.log('✅ Signin successful:', response.data);
             
             // Store authentication data
-            localStorage.setItem("token", response.data.token);
+            localStorage.setItem("token", response.data.data.token);
             localStorage.setItem("user", JSON.stringify({
-                id: response.data.user.id,
-                firstName: response.data.user.firstName,
-                lastName: response.data.user.lastName,
-                email: response.data.user.email,
-                quickpeId: response.data.user.quickpeId,
-                balance: response.data.user.balance,
-                role: response.data.user.role,
-                isAdmin: response.data.user.isAdmin,
+                id: response.data.data.user.id,
+                firstName: response.data.data.user.firstName,
+                lastName: response.data.data.user.lastName,
+                email: response.data.data.user.email,
+                quickpeId: response.data.data.user.quickpeId,
+                balance: response.data.data.user.balance,
+                role: response.data.data.user.role,
+                isAdmin: response.data.data.user.isAdmin,
                 lastLogin: new Date().toISOString()
             }));
             

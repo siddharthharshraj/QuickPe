@@ -1,4 +1,14 @@
 const winston = require('winston');
+const DailyRotateFile = require('winston-daily-rotate-file');
+const path = require('path');
+const fs = require('fs');
+const MongoTransport = require('./mongoTransport');
+
+// Ensure logs directory exists
+const logsDir = path.join(__dirname, '..', 'logs');
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+}
 
 // Create structured logger for QuickPe real-time system
 const logger = winston.createLogger({
@@ -6,18 +16,11 @@ const logger = winston.createLogger({
     format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.errors({ stack: true }),
-        winston.format.json(),
-        winston.format.printf(({ timestamp, level, message, ...meta }) => {
-            return JSON.stringify({
-                timestamp,
-                level: level.toUpperCase(),
-                message,
-                ...meta
-            });
-        })
+        winston.format.json()
     ),
     defaultMeta: { service: 'quickpe-backend' },
     transports: [
+        // Console transport for development
         new winston.transports.Console({
             format: winston.format.combine(
                 winston.format.colorize(),
@@ -27,7 +30,42 @@ const logger = winston.createLogger({
                     return `${timestamp} [${level}]: ${message} ${metaStr}`;
                 })
             )
-        })
+        }),
+        
+        // Daily rotate file transport for production logs
+        new DailyRotateFile({
+            filename: path.join(logsDir, 'quickpe-%DATE%.log'),
+            datePattern: 'YYYY-MM-DD',
+            zippedArchive: true,
+            maxSize: '20m',
+            maxFiles: '14d',
+            format: winston.format.combine(
+                winston.format.timestamp(),
+                winston.format.json()
+            )
+        }),
+        
+        // Error-only log file
+        new DailyRotateFile({
+            filename: path.join(logsDir, 'quickpe-error-%DATE%.log'),
+            datePattern: 'YYYY-MM-DD',
+            zippedArchive: true,
+            maxSize: '20m',
+            maxFiles: '30d',
+            level: 'error',
+            format: winston.format.combine(
+                winston.format.timestamp(),
+                winston.format.json()
+            )
+        }),
+        
+        // MongoDB transport for database storage (temporarily disabled)
+        // new MongoTransport({
+        //     level: 'info',
+        //     batchSize: 20,
+        //     batchTimeout: 10000,
+        //     silent: process.env.DISABLE_DB_LOGGING === 'true'
+        // })
     ]
 });
 
@@ -99,6 +137,24 @@ const logError = (error, context = {}) => {
     });
 };
 
+// Helper function to get logs directory path
+const getLogsDirectory = () => logsDir;
+
+// Helper function to get latest log file
+const getLatestLogFile = () => {
+    try {
+        const files = fs.readdirSync(logsDir)
+            .filter(file => file.startsWith('quickpe-') && file.endsWith('.log') && !file.includes('error'))
+            .sort()
+            .reverse();
+        
+        return files.length > 0 ? path.join(logsDir, files[0]) : null;
+    } catch (error) {
+        logger.error('Error getting latest log file', { error: error.message });
+        return null;
+    }
+};
+
 module.exports = {
     logger,
     logSocketEvent,
@@ -106,5 +162,7 @@ module.exports = {
     logNotification,
     logDatabaseOperation,
     logRealTimeEvent,
-    logError
+    logError,
+    getLogsDirectory,
+    getLatestLogFile
 };

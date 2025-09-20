@@ -30,6 +30,7 @@ export const useSocket = (userId, onNotification) => {
             }
         });
 
+        socketRef.current = newSocket;
         const socket = socketRef.current;
 
         // Start heartbeat monitoring
