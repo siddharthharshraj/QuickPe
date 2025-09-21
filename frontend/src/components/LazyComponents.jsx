@@ -48,16 +48,54 @@ const createSafeLazyComponent = (importFunction, componentName) => {
 
 // Optimized lazy component wrapper with preloading and skeleton support
 const createOptimizedLazyComponent = (importFn, componentName, useSkeleton = false) => {
-  const LazyComponent = lazy(importFn);
+  const LazyComponent = lazy(() => importFn().catch(error => {
+    console.error(`Failed to load component ${componentName}:`, error);
+    return {
+      default: () => (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="text-center">
+            <div className="text-red-500 text-4xl mb-4">⚠️</div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Component Load Error</h2>
+            <p className="text-gray-600 mb-4">Failed to load {componentName}. Please try refreshing the page.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      )
+    };
+  }));
   
   // Add preload method
   LazyComponent.preload = importFn;
   
-  return React.forwardRef((props, ref) => (
-    <Suspense fallback={useSkeleton ? <PageSkeleton type="dashboard" /> : <div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div></div>}>
-      <LazyComponent {...props} ref={ref} />
-    </Suspense>
-  ));
+  return React.forwardRef((props, ref) => {
+    const [isPending, startTransition] = React.useTransition();
+    
+    // Preload the component when it mounts
+    React.useEffect(() => {
+      startTransition(() => {
+        LazyComponent.preload();
+      });
+    }, []);
+    
+    const fallback = useSkeleton ? (
+      <PageSkeleton type="dashboard" />
+    ) : (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+    
+    return (
+      <Suspense fallback={fallback}>
+        <LazyComponent {...props} ref={ref} />
+      </Suspense>
+    );
+  });
 };
 
 // Safe lazy load all major pages

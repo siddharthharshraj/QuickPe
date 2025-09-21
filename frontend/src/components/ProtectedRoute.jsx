@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState, startTransition } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 
@@ -9,13 +9,15 @@ const ProtectedRoute = ({ children }) => {
     const location = useLocation();
 
     useEffect(() => {
-        // Set initialized to true after first render
-        setIsInitialized(true);
-        
-        // Show error toast if there's an authentication error
-        if (error) {
-            toast.error(error.message || 'Authentication failed');
-        }
+        startTransition(() => {
+            // Set initialized to true after first render
+            setIsInitialized(true);
+            
+            // Show error toast if there's an authentication error
+            if (error) {
+                toast.error(error.message || 'Authentication failed');
+            }
+        });
     }, [error]);
 
     // Show loading state while auth is being checked

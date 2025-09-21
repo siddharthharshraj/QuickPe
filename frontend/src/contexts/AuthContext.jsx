@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, startTransition } from 'react';
 import apiClient from '../services/api/client';
 
 export const AuthContext = createContext();
@@ -11,12 +11,18 @@ export const AuthProvider = ({ children }) => {
 
   // Check authentication status
   const checkAuth = useCallback(async () => {
+    startTransition(() => {
+      setLoading(true);
+    });
+    
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     
     if (!token || !userData) {
-      setLoading(false);
-      setIsAuthenticated(false);
+      startTransition(() => {
+        setLoading(false);
+        setIsAuthenticated(false);
+      });
       return false;
     }
 
@@ -56,17 +62,25 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = useCallback(async (email, password) => {
-    try {
+    startTransition(() => {
       setLoading(true);
       setError(null);
+    });
+    
+    try {
       const response = await apiClient.post('/auth/login', { email, password });
       
       if (response.data.success) {
         const { token, user } = response.data;
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
-        setUser(user);
-        setIsAuthenticated(true);
+        
+        startTransition(() => {
+          setUser(user);
+          setIsAuthenticated(true);
+          setLoading(false);
+        });
+        
         return { success: true };
       }
       
@@ -81,10 +95,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(() => {
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    startTransition(() => {
+      setUser(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    });
   }, []);
 
   const value = {

@@ -27,18 +27,24 @@ class EnhancedErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error details
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // Enhanced error logging with more context
+    console.group('🚨 ErrorBoundary Caught Error');
+    console.error('Error Name:', error.name);
+    console.error('Error Message:', error.message);
+    console.error('Error Stack:', error.stack);
+    console.error('Component Stack:', errorInfo.componentStack);
+    console.error('Props:', this.props);
+    console.error('Location:', window.location.href);
+    console.error('User Agent:', navigator.userAgent);
+    console.groupEnd();
     
     this.setState({
       error,
       errorInfo
     });
 
-    // Send error to monitoring service in production
-    if (process.env.NODE_ENV === 'production') {
-      this.logErrorToService(error, errorInfo);
-    }
+    // Send error to monitoring service
+    this.logErrorToService(error, errorInfo);
   }
 
   logErrorToService = (error, errorInfo) => {

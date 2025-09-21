@@ -23,7 +23,9 @@ import AuditTrailPreview from '../components/AuditTrailPreview';
 import { Link } from 'react-router-dom';
 import apiClient from '../services/api/client';
 import { useMemoryManager } from '../utils/memoryManager';
-import driver from 'driver.js';
+import { driver } from 'driver.js';
+import { useSocket } from '../sockets/useSocket';
+import { PageSkeleton } from '../components/PageSkeleton';
 
 export const DashboardHome = () => {
   const navigate = useNavigate();
@@ -44,7 +46,7 @@ export const DashboardHome = () => {
   const [userId, setUserId] = useState(null);
 
   // Initialize socket for real-time updates
-  const { socket, isConnected } = useSocket(userId, (notification) => {
+  const { isConnected } = useSocket(userId, (notification) => {
     console.log('Dashboard received notification:', notification);
     // Refresh dashboard data when notifications arrive
     fetchDashboardData();
@@ -264,34 +266,39 @@ export const DashboardHome = () => {
     driverObj.drive();
   };
 
+  // Quick actions data with unique IDs
   const quickActions = [
     {
+      id: 'quick-action-1',
       title: 'Send Money',
-      description: 'Transfer funds to other users',
-      icon: BanknotesIcon,
-      color: 'from-emerald-500 to-teal-600',
-      path: '/send-money'
+      description: 'Transfer funds instantly',
+      icon: PaperAirplaneIcon,
+      path: '/send-money',
+      color: 'from-blue-500 to-indigo-600'
     },
     {
-      title: 'Transaction History',
-      description: 'View all your transactions',
+      id: 'quick-action-2',
+      title: 'Request Money',
+      description: 'Request payment from others',
+      icon: CurrencyRupeeIcon,
+      path: '/request-money',
+      color: 'from-emerald-500 to-teal-600'
+    },
+    {
+      id: 'quick-action-3',
+      title: 'View History',
+      description: 'See all transactions',
       icon: ClockIcon,
-      color: 'from-blue-500 to-indigo-600',
-      path: '/transaction-history'
+      path: '/transaction-history',
+      color: 'from-purple-500 to-pink-600'
     },
     {
+      id: 'quick-action-4',
       title: 'Analytics',
-      description: 'Detailed spending insights',
+      description: 'View spending insights',
       icon: ChartBarIcon,
-      color: 'from-purple-500 to-pink-600',
-      path: '/analytics'
-    },
-    {
-      title: 'AI Assistant',
-      description: 'Smart financial insights',
-      icon: UserGroupIcon,
-      color: 'from-orange-500 to-red-600',
-      path: '/ai-assistant'
+      path: '/analytics',
+      color: 'from-orange-500 to-red-600'
     }
   ];
 
@@ -336,14 +343,8 @@ export const DashboardHome = () => {
   }
 
   // Show skeleton while loading
-  if (showSkeleton || loading) {
-    return (
-      <>
-        <Header />
-        <PageSkeleton type="dashboard" />
-        <Footer />
-      </>
-    );
+  if (loading || showSkeleton) {
+    return <PageSkeleton type="dashboard" />;
   }
 
   // Debug: Log render state
@@ -426,9 +427,10 @@ export const DashboardHome = () => {
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {quickActions.map((action, index) => (
+                  {quickActions.map((action) => (
                     <motion.button
-                      key={action.title}
+                      key={action.id}
+                      id={`menu-item-${action.id}`}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => navigate(action.path)}

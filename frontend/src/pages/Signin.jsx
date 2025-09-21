@@ -13,6 +13,9 @@ export const Signin = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [validationErrors, setValidationErrors] = useState({});
+    const [isRateLimited, setIsRateLimited] = useState(false);
+    const [retryAfter, setRetryAfter] = useState(0);
+    const [retryTimer, setRetryTimer] = useState(null);
     const navigate = useNavigate();
 
     // Registered database users with account balances (showing last 3 users)
@@ -71,6 +74,13 @@ export const Signin = () => {
             });
             console.log('✅ Signin successful:', response.data);
             
+            // Reset rate limiting state on successful login
+            setIsRateLimited(false);
+            if (retryTimer) {
+                clearInterval(retryTimer);
+                setRetryTimer(null);
+            }
+            
             // Store authentication data
             localStorage.setItem("token", response.data.data.token);
             localStorage.setItem("user", JSON.stringify({
@@ -90,7 +100,30 @@ export const Signin = () => {
             console.error('❌ Signin failed:', err);
             console.error('Error response:', err.response?.data);
             console.error('Error status:', err.response?.status);
-            setError(err.response?.data?.message || "Something went wrong. Please try again.");
+            
+            // Handle rate limiting
+            if (err.response?.status === 429) {
+                const retryAfter = parseInt(err.response.headers['retry-after']) || 60;
+                setIsRateLimited(true);
+                setRetryAfter(retryAfter);
+                
+                // Start countdown timer
+                const timer = setInterval(() => {
+                    setRetryAfter(prev => {
+                        if (prev <= 1) {
+                            clearInterval(timer);
+                            setIsRateLimited(false);
+                            return 0;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+                
+                setRetryTimer(timer);
+                setError(`Too many attempts. Please try again in ${retryAfter} seconds.`);
+            } else {
+                setError(err.response?.data?.message || "Something went wrong. Please try again.");
+            }
         } finally {
             setLoading(false);
         }
@@ -261,7 +294,7 @@ export const Signin = () => {
                                 </div>
 
                                 {/* Password Input */}
-                                <div>
+                                <div className="mt-4">
                                     <label className="block text-sm font-medium text-slate-700 mb-2">
                                         Password
                                     </label>
@@ -281,8 +314,8 @@ export const Signin = () => {
                                         />
                                         <button
                                             type="button"
-                                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
                                             onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
                                         >
                                             {showPassword ? (
                                                 <EyeSlashIcon className="h-5 w-5 text-slate-400 hover:text-slate-600" />
@@ -296,23 +329,50 @@ export const Signin = () => {
                                     )}
                                 </div>
 
+                                {/* Error Message */}
+                                {(error || isRateLimited) && (
+                                    <div className={`p-3 rounded-md text-sm mb-4 ${
+                                        isRateLimited 
+                                            ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' 
+                                            : 'bg-red-50 text-red-600'
+                                    }`}>
+                                        {isRateLimited ? (
+                                            <div className="flex items-center">
+                                                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                </svg>
+                                                <div>
+                                                    <p className="font-medium">Too many attempts</p>
+                                                    <p>Please wait {retryAfter} seconds before trying again.</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center">
+                                                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                                </svg>
+                                                {error}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Sign In Button */}
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
+                                <button
                                     type="submit"
-                                    disabled={loading}
-                                    className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-3 px-4 rounded-xl font-semibold shadow-lg hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                    disabled={loading || isRateLimited}
+                                    className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+                                        isRateLimited 
+                                            ? 'bg-gray-400 cursor-not-allowed' 
+                                            : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500'
+                                    } focus:outline-none ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                                 >
-                                    {loading ? (
-                                        <div className="flex items-center justify-center">
-                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                                            Signing In...
-                                        </div>
-                                    ) : (
-                                        'Sign In'
-                                    )}
-                                </motion.button>
+                                    {loading 
+                                        ? 'Signing in...' 
+                                        : isRateLimited 
+                                            ? `Try again in ${retryAfter}s` 
+                                            : 'Sign in'}
+                                </button>
                             </form>
 
                             {/* Sign Up Link */}

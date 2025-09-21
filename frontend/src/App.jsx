@@ -110,136 +110,86 @@ function App() {
               <LazySignin />
             </SafeLazyWrapper>
           } />
-          <Route path="/kpi-reports" element={
-            <Suspense fallback={<DashboardSkeleton />}>
-              <LazyKPIReports />
-            </Suspense>
-          } />
-          <Route path="/about" element={
-            <Suspense fallback={<DashboardSkeleton />}>
-              <LazyAbout />
-            </Suspense>
-          } />
+          <Route path="/kpi-reports" element={<LazyKPIReports />} />
+          <Route path="/about" element={<LazyAbout />} />
           <Route path="/audit-trail" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyAuditTrail />
-              </Suspense>
+              <LazyAuditTrail />
             </ProtectedRoute>
           } />
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyDashboardHome />
-              </Suspense>
+              <LazyDashboardHome />
             </ProtectedRoute>
           } />
           <Route path="/send-money" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazySendMoneyPage />
-              </Suspense>
+              <LazySendMoneyPage />
             </ProtectedRoute>
           } />
           <Route path="/send" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazySendMoney />
-              </Suspense>
+              <LazySendMoney />
             </ProtectedRoute>
           } />
           <Route path="/transaction-history" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyTransactionHistory />
-              </Suspense>
+              <LazyTransactionHistory />
             </ProtectedRoute>
           } />
           <Route path="/analytics" element={
             <ProtectedRoute>
-              <Suspense fallback={<AnalyticsSkeleton />}>
-                <LazyAnalytics />
-              </Suspense>
+              <LazyAnalytics />
             </ProtectedRoute>
           } />
           <Route path="/ai-assistant" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyAIAssistant />
-              </Suspense>
+              <LazyAIAssistant />
             </ProtectedRoute>
           } />
           <Route path="/settings" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazySettings />
-              </Suspense>
+              <LazySettings />
             </ProtectedRoute>
           } />
           <Route path="/logs" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyLogViewer />
-              </Suspense>
+              <LazyLogViewer />
             </ProtectedRoute>
           } />
           <Route path="/admin" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyAdminDashboard />
-              </Suspense>
+              <LazyAdminDashboard />
             </ProtectedRoute>
           } />
           <Route path="/admin/logs" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyAdminLogs />
-              </Suspense>
+              <LazyAdminLogs />
             </ProtectedRoute>
           } />
           <Route path="/admin/database" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyAdminDatabase />
-              </Suspense>
+              <LazyAdminDatabase />
             </ProtectedRoute>
           } />
           <Route path="/trade-journal" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyTradeJournal />
-              </Suspense>
+              <LazyTradeJournal />
             </ProtectedRoute>
           } />
           <Route path="/trade-analytics" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyTradeAnalytics />
-              </Suspense>
+              <LazyTradeAnalytics />
             </ProtectedRoute>
           } />
           <Route path="/upgrade" element={
             <ProtectedRoute>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <LazyUpgradePage />
-              </Suspense>
+              <LazyUpgradePage />
             </ProtectedRoute>
           } />
-          <Route path="/contact" element={
-            <Suspense fallback={<DashboardSkeleton />}>
-              <LazyContact />
-            </Suspense>
-          } />
-          <Route path="/" element={
-            <Suspense fallback={<DashboardSkeleton />}>
-              <LazyLanding />
-            </Suspense>
-          } />
-          <Route path="*" element={
-            <Suspense fallback={<DashboardSkeleton />}>
-              <LazyNotFound />
-            </Suspense>
-          } />
+          <Route path="/contact" element={<LazyContact />} />
+          <Route path="/" element={<LazyLanding />} />
+          <Route path="*" element={<LazyNotFound />} />
         </Routes>
       </BrowserRouter>
       
