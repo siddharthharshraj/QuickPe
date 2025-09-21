@@ -1,48 +1,25 @@
-import { Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import apiClient from '../services/api/client';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useContext, useEffect, useState } from 'react';
+import { AuthContext } from '../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
-export const ProtectedRoute = ({ children }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
-    
+const ProtectedRoute = ({ children }) => {
+    const { isAuthenticated, loading, error } = useContext(AuthContext);
+    const [isInitialized, setIsInitialized] = useState(false);
+    const location = useLocation();
+
     useEffect(() => {
-        const validateAuth = async () => {
-            const token = localStorage.getItem('token');
-            const user = localStorage.getItem('user');
-            
-            if (!token || !user) {
-                setIsAuthenticated(false);
-                setIsLoading(false);
-                return;
-            }
-            
-            try {
-                // Validate user data format
-                const userData = JSON.parse(user);
-                
-                // Verify token with backend
-                const response = await apiClient.get('/auth/verify');
-                
-                if (response.data.success) {
-                    setIsAuthenticated(true);
-                } else {
-                    throw new Error('Token verification failed');
-                }
-            } catch (error) {
-                console.error('Authentication validation failed:', error);
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                setIsAuthenticated(false);
-            } finally {
-                setIsLoading(false);
-            }
-        };
+        // Set initialized to true after first render
+        setIsInitialized(true);
         
-        validateAuth();
-    }, []);
-    
-    if (isLoading) {
+        // Show error toast if there's an authentication error
+        if (error) {
+            toast.error(error.message || 'Authentication failed');
+        }
+    }, [error]);
+
+    // Show loading state while auth is being checked
+    if (loading || !isInitialized) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50 to-teal-50">
                 <div className="text-center">
@@ -52,11 +29,14 @@ export const ProtectedRoute = ({ children }) => {
             </div>
         );
     }
-    
+
+    // Redirect to signin if not authenticated
     if (!isAuthenticated) {
-        return <Navigate to="/signin" replace />;
+        // Store the current location to redirect back after login
+        const redirectTo = location.pathname !== '/signin' ? `?redirect=${encodeURIComponent(location.pathname + location.search)}` : '';
+        return <Navigate to={`/signin${redirectTo}`} replace state={{ from: location }} />;
     }
-    
+
     return children;
 };
 

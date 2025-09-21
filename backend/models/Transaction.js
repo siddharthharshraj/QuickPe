@@ -74,7 +74,75 @@ const transactionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.Mixed,
         default: {}
     }
+}, {
+    timestamps: true,
+    // Performance optimizations
+    collection: 'transactions',
+    selectPopulatedPaths: false
 });
+
+// ============= DATABASE OPTIMIZATION INDEXES =============
+
+// Primary indexes
+transactionSchema.index({ transactionId: 1 }, { unique: true, background: true });
+transactionSchema.index({ userId: 1, timestamp: -1 }, { background: true });
+transactionSchema.index({ userId: 1, createdAt: -1 }, { background: true });
+
+// Query optimization indexes
+transactionSchema.index({ type: 1, status: 1 }, { background: true });
+transactionSchema.index({ category: 1, timestamp: -1 }, { background: true });
+transactionSchema.index({ amount: -1 }, { background: true });
+transactionSchema.index({ status: 1, timestamp: -1 }, { background: true });
+
+// Compound indexes for common queries
+transactionSchema.index({ 
+    userId: 1, 
+    type: 1, 
+    timestamp: -1 
+}, { background: true });
+
+transactionSchema.index({ 
+    userId: 1, 
+    status: 1, 
+    timestamp: -1 
+}, { background: true });
+
+transactionSchema.index({ 
+    userId: 1, 
+    category: 1, 
+    timestamp: -1 
+}, { background: true });
+
+// Analytics indexes
+transactionSchema.index({ 
+    userId: 1, 
+    type: 1, 
+    category: 1, 
+    timestamp: -1 
+}, { background: true });
+
+// Transfer-specific indexes
+transactionSchema.index({ fromUserId: 1, timestamp: -1 }, { background: true });
+transactionSchema.index({ toUserId: 1, timestamp: -1 }, { background: true });
+
+// Text search for transaction descriptions
+transactionSchema.index({
+    description: 'text',
+    transactionId: 'text'
+}, { 
+    background: true,
+    weights: {
+        transactionId: 10,
+        description: 5
+    },
+    name: 'transaction_search_index'
+});
+
+// TTL index for old transactions (optional - keep 2 years)
+// transactionSchema.index({ timestamp: 1 }, { 
+//     expireAfterSeconds: 63072000, // 2 years
+//     background: true 
+// });
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
 

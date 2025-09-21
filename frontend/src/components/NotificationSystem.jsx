@@ -189,13 +189,13 @@ export const NotificationSystem = ({ userId }) => {
     if (userId && localStorage.getItem('token')) {
       console.log('✅ Both userId and token present - setting up periodic refresh');
       
-      // Set up periodic refresh every 30 seconds
-      const interval = setInterval(() => {
-        console.log('🔄 Periodic refresh triggered');
-        fetchNotifications();
-      }, 30000);
-      
-      return () => clearInterval(interval);
+      // Set up periodic refresh every 5 minutes (disabled to prevent memory issues)
+      // const interval = setInterval(() => {
+      //   console.log('🔄 Periodic refresh triggered');
+      //   fetchNotifications();
+      // }, 300000);
+
+      // return () => clearInterval(interval);
     } else {
       console.log('⚠️ Missing userId or token - userId:', userId, 'token:', !!localStorage.getItem('token'));
       console.log('⚠️ Will still attempt fetch for debugging purposes');

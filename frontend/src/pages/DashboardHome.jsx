@@ -1,29 +1,35 @@
-import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  BanknotesIcon, 
-  ArrowTrendingUpIcon, 
+  CurrencyRupeeIcon,
+  ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
-  UserGroupIcon,
+  UsersIcon,
+  PaperAirplaneIcon,
   ClockIcon,
-  PlusIcon,
-  ArrowRightIcon,
   ChartBarIcon,
-  CurrencyRupeeIcon
+  BanknotesIcon,
+  ArrowRightIcon,
+  PlusIcon,
+  UserGroupIcon
 } from '@heroicons/react/24/outline';
-import { useDebounce, useOptimizedCallback, useMemoizedCalculation } from '../utils/performance';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { Balance } from '../components/Balance';
+import { RecentActivity } from '../components/RecentActivity';
 import { LogoLoader } from '../components/LogoLoader';
-import { PageSkeleton } from '../components/PageSkeleton';
-import { useSocket } from '../sockets/useSocket';
 import AuditTrailPreview from '../components/AuditTrailPreview';
+import { Link } from 'react-router-dom';
 import apiClient from '../services/api/client';
+import { useMemoryManager } from '../utils/memoryManager';
+import driver from 'driver.js';
 
 export const DashboardHome = () => {
   const navigate = useNavigate();
+  // Temporarily disabled memory manager to fix errors
+  // const componentRef = useRef({});
+  // const memoryManager = useMemoryManager(componentRef.current);
   const [stats, setStats] = useState({
     totalBalance: 0,
     totalTransactions: 0,

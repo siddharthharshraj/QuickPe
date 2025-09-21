@@ -60,7 +60,7 @@ class AuthService {
         // }
 
         // Generate JWT token
-        const token = this.generateToken(newUser._id);
+        const token = await this.generateToken(newUser._id);
 
         return {
             user: {
@@ -120,7 +120,7 @@ class AuthService {
         // }
 
         // Generate JWT token
-        const token = this.generateToken(user._id);
+        const token = await this.generateToken(user._id);
 
         return {
             user: {
@@ -178,7 +178,7 @@ class AuthService {
                 throw new Error('Invalid refresh token');
             }
 
-            const newToken = this.generateToken(user._id);
+            const newToken = await this.generateToken(user._id);
             const newRefreshToken = this.generateRefreshToken(user._id);
 
             return {
@@ -193,9 +193,15 @@ class AuthService {
     /**
      * Generate JWT token
      */
-    generateToken(userId) {
+    async generateToken(userId) {
+        // Get user details to include role and admin status in token
+        const user = await this.userRepository.findById(userId);
         return jwt.sign(
-            { userId },
+            { 
+                userId,
+                role: user.role,
+                isAdmin: user.isAdmin || false
+            },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );

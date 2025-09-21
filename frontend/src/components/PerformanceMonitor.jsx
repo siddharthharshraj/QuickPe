@@ -52,8 +52,8 @@ export const PerformanceMonitor = memo(() => {
     measureMemory();
     measureLoadTime();
 
-    // Update memory periodically
-    const memoryInterval = setInterval(measureMemory, 2000);
+    // Update memory periodically (reduced frequency)
+    const memoryInterval = setInterval(measureMemory, 10000);
 
     // Show/hide based on development mode
     setIsVisible(process.env.NODE_ENV === 'development');

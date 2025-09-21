@@ -120,9 +120,91 @@ const userSchema = new mongoose.Schema({
     settingsEnabled: {
         type: Boolean,
         default: true
+    },
+    subscription: {
+        status: { 
+            type: String, 
+            enum: ['trial', 'active', 'expired', 'cancelled'], 
+            default: 'trial' 
+        },
+        plan: { 
+            type: String, 
+            enum: ['basic', 'premium', 'enterprise'], 
+            default: null 
+        },
+        trialStartDate: { 
+            type: Date, 
+            default: Date.now 
+        },
+        trialEndDate: { 
+            type: Date, 
+            default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) 
+        },
+        subscriptionStartDate: Date,
+        subscriptionEndDate: Date,
+        razorpaySubscriptionId: String,
+        razorpayCustomerId: String,
+        paymentMethod: String,
+        billingCycle: { 
+            type: String, 
+            enum: ['monthly', 'yearly'], 
+            default: 'monthly' 
+        }
+    },
+    featureFlags: {
+        canSendMoney: { type: Boolean, default: false },
+        canReceiveMoney: { type: Boolean, default: false },
+        canViewAnalytics: { type: Boolean, default: false },
+        canExportHistory: { type: Boolean, default: true },
+        canUseTradeAnalytics: { type: Boolean, default: false },
+        isAdmin: { type: Boolean, default: false },
+        adminLevel: { type: Number, default: 0 } // 0=none, 1=basic, 2=super, 3=enterprise
     }
 }, {
-    timestamps: true
+    timestamps: true,
+    // Performance optimizations
+    collection: 'users',
+    selectPopulatedPaths: false,
+    minimize: false
+});
+
+// ============= DATABASE OPTIMIZATION INDEXES =============
+
+// Primary search indexes
+userSchema.index({ email: 1 }, { unique: true, background: true });
+userSchema.index({ quickpeId: 1 }, { unique: true, sparse: true, background: true });
+userSchema.index({ phone: 1 }, { unique: true, sparse: true, background: true });
+userSchema.index({ username: 1 }, { unique: true, sparse: true, background: true });
+
+// Query optimization indexes
+userSchema.index({ isActive: 1, role: 1 }, { background: true });
+userSchema.index({ 'subscription.status': 1, 'subscription.plan': 1 }, { background: true });
+userSchema.index({ isAdmin: 1, 'featureFlags.adminLevel': 1 }, { background: true });
+userSchema.index({ lastLogin: -1 }, { background: true });
+userSchema.index({ createdAt: -1 }, { background: true });
+
+// Compound indexes for admin queries
+userSchema.index({ 
+    isActive: 1, 
+    'subscription.status': 1, 
+    createdAt: -1 
+}, { background: true });
+
+// Text search index for user search
+userSchema.index({
+    firstName: 'text',
+    lastName: 'text',
+    email: 'text',
+    quickpeId: 'text'
+}, { 
+    background: true,
+    weights: {
+        quickpeId: 10,
+        email: 8,
+        firstName: 5,
+        lastName: 5
+    },
+    name: 'user_search_index'
 });
 
 // Hash password before saving

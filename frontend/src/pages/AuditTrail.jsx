@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeftIcon, DocumentArrowDownIcon, ShieldCheckIcon, FunnelIcon, MagnifyingGlassIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import apiClient from '../services/api/client';
-import AuditTrailPDFExport from '../components/AuditTrailPDFReport';
+import { CSVExportButton } from '../components/LazyPDFComponents';
 
 const AuditTrail = () => {
     const navigate = useNavigate();
@@ -254,11 +254,9 @@ const AuditTrail = () => {
                             </button>
                             
                             {auditLogs.length > 0 && (
-                                <AuditTrailPDFExport
-                                    auditLogs={auditLogs}
-                                    userInfo={userInfo}
-                                    filters={filters}
-                                    stats={stats}
+                                <CSVExportButton
+                                    data={auditLogs}
+                                    filename="audit-trail-report"
                                 />
                             )}
                         </div>

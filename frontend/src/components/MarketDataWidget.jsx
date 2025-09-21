@@ -15,8 +15,8 @@ const MarketDataWidget = () => {
 
   useEffect(() => {
     fetchMarketData();
-    // Update every 30 seconds
-    const interval = setInterval(fetchMarketData, 30000);
+    // Update every 2 minutes to reduce memory usage
+    const interval = setInterval(fetchMarketData, 120000);
     return () => clearInterval(interval);
   }, []);
 

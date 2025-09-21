@@ -10,13 +10,14 @@ import { Toaster } from 'react-hot-toast';
 
 // Import providers
 import { QueryProvider } from './providers/QueryProvider';
+import { AuthProvider } from './contexts/AuthContext';
+import { AppProvider } from './contexts/GlobalAppContext';
 
 // Import components
 import EnhancedErrorBoundary from './components/EnhancedErrorBoundary';
 import SafeLazyWrapper from './components/SafeLazyWrapper';
-import PerformanceMonitor from './components/PerformanceMonitor';
 import { useSocket } from './sockets/useSocket';
-import { ConnectionStatus } from './components/ConnectionStatus';
+// import { ConnectionStatus } from './components/ConnectionStatus';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Import lazy components for code splitting
@@ -35,7 +36,11 @@ import {
   LazyAbout,
   LazyKPIReports,
   LazyAdminDashboard,
+  LazyAdminLogs,
+  LazyAdminDatabase,
   LazyTradeJournal,
+  LazyTradeAnalytics,
+  LazyUpgradePage,
   LazySettings,
   LazyLogViewer,
   LazyNotFound,
@@ -49,25 +54,27 @@ import './App.css';
 
 // Using apiClient from api/client.js for all API calls
 
-// Global Socket Connection Component
+// Global Socket Connection Component (Optimized)
 const GlobalSocketConnection = () => {
-  // Initialize global socket connection
   const currentUserId = localStorage.getItem('userId');
-  const { socket, isConnected, connectionStatus, reconnectAttempts, lastHeartbeat } = useSocket(currentUserId);
+  const { socket, isConnected, connectionStatus, reconnectAttempts, lastHeartbeat } = useSocket(currentUserId, (notification) => {
+    // Handle notifications globally
+    console.log('🌐 Global notification received:', notification);
+  });
 
   useEffect(() => {
     if (currentUserId && socket) {
       console.log('🌐 Global Socket.IO connection established for user:', currentUserId);
-      console.log('📡 Connection status:', isConnected ? 'Connected' : 'Disconnected');
     }
-  }, [currentUserId, socket, isConnected]);
-  
+  }, [currentUserId, socket]);
+
   return null;
 };
 
 function App() {
-  const currentUserId = localStorage.getItem('userId');
-  const { isConnected, connectionStatus, reconnectAttempts, lastHeartbeat } = useSocket(currentUserId);
+  // Removed duplicate socket connection - using GlobalSocketConnection instead
+  // const currentUserId = localStorage.getItem('userId');
+  // const { isConnected, connectionStatus, reconnectAttempts, lastHeartbeat } = useSocket(currentUserId);
 
   // Preload critical components on app start (disabled to prevent errors)
   // useEffect(() => {
@@ -76,18 +83,22 @@ function App() {
 
   return (
     <QueryProvider>
-      <EnhancedErrorBoundary>
-        <GlobalSocketConnection />
-        {/* Connection Status Monitor */}
-        {currentUserId && (
-          <ConnectionStatus 
-            connectionStatus={connectionStatus}
-            reconnectAttempts={reconnectAttempts}
-            lastHeartbeat={lastHeartbeat}
-            isConnected={isConnected}
-          />
-        )}
-         <BrowserRouter>
+      <AuthProvider>
+        <AppProvider>
+          <EnhancedErrorBoundary>
+          <GlobalSocketConnection />
+          {/* Connection Status Monitor - Disabled to prevent memory issues */}
+          {/*
+          {currentUserId && (
+            <ConnectionStatus
+              connectionStatus={connectionStatus}
+              reconnectAttempts={reconnectAttempts}
+              lastHeartbeat={lastHeartbeat}
+              isConnected={isConnected}
+            />
+          )}
+          */}
+           <BrowserRouter>
         <Routes>
           <Route path="/signup" element={
             <SafeLazyWrapper fallback={<FormSkeleton />}>
@@ -179,10 +190,38 @@ function App() {
               </Suspense>
             </ProtectedRoute>
           } />
+          <Route path="/admin/logs" element={
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyAdminLogs />
+              </Suspense>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/database" element={
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyAdminDatabase />
+              </Suspense>
+            </ProtectedRoute>
+          } />
           <Route path="/trade-journal" element={
             <ProtectedRoute>
               <Suspense fallback={<DashboardSkeleton />}>
                 <LazyTradeJournal />
+              </Suspense>
+            </ProtectedRoute>
+          } />
+          <Route path="/trade-analytics" element={
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyTradeAnalytics />
+              </Suspense>
+            </ProtectedRoute>
+          } />
+          <Route path="/upgrade" element={
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardSkeleton />}>
+                <LazyUpgradePage />
               </Suspense>
             </ProtectedRoute>
           } />
@@ -231,9 +270,13 @@ function App() {
         }}
       />
         
-        {/* Performance Monitor */}
+        {/* Performance Monitor - Disabled to prevent memory issues */}
+        {/*
         <PerformanceMonitor />
+        */}
       </EnhancedErrorBoundary>
+      </AppProvider>
+      </AuthProvider>
     </QueryProvider>
   )
 }

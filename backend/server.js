@@ -1,33 +1,32 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const databaseConfig = require('./config/database');
-const helmet = require('helmet');
 const compression = require('compression');
+const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { createServer } = require('http');
-const { Server } = require('socket.io');
-const dotenv = require('dotenv');
+const slowDown = require('express-slow-down');
+const mongoose = require('mongoose');
+const http = require('http');
+const socketIo = require('socket.io');
 const jwt = require('jsonwebtoken');
-const { logSocketEvent, logError } = require('./utils/logger');
-const userRoutes = require('./routes/user');
-const accountRoutes = require('./routes/account');
-const authRoutes = require('./routes/auth');
-const adminRoutes = require('./routes/admin');
-const tradeJournalRoutes = require('./routes/tradeJournal');
-const initializeRoutes = require('./routes/initialize');
-const analyticsRoutes = require('./routes/analytics');
-const analyticsComprehensiveRoutes = require('./routes/analytics-comprehensive');
-// const contactRoutes = require('./routes/contact');
-const aiAssistantRoutes = require('./routes/ai-assistant');
-const logsRoutes = require('./routes/logs');
+const cluster = require('cluster');
+const os = require('os');
 
-// Load environment variables
-dotenv.config();
+// Import optimized utilities
+const dbConfig = require('./config/database');
+const { telemetry } = require('./utils/telemetry');
+const { cache, strategies } = require('./utils/advancedCache');
+const { trackRequest, getRealTimeMetrics, updateCacheMetrics } = require('./utils/performanceMonitor');
+const {
+    requestTelemetry,
+    errorTelemetry,
+    businessMetricsTelemetry,
+    systemHealthTelemetry
+} = require('./middleware/telemetryMiddleware');
+const { logSocketEvent, logError } = require('./utils/logger');
 
 const app = express();
-const server = createServer(app);
-const io = new Server(server, {
+const server = http.createServer(app);
+const io = new socketIo.Server(server, {
   cors: {
     origin: [
       "http://localhost:3000",
@@ -104,7 +103,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 
 // Performance monitoring middleware
 const { monitorMemory, optimizeResponse } = require('./utils/performance');
@@ -127,25 +126,51 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting - more lenient for development
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
-  },
+// Advanced rate limiting with different tiers
+const createRateLimiter = (windowMs, max, message) => rateLimit({
+  windowMs,
+  max,
+  message: { error: message, retryAfter: `${windowMs / 1000}s` },
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip rate limiting for health checks
+  skip: (req) => req.path === '/health' || req.path === '/api/status'
+});
+
+// Slow down repeated requests
+const speedLimiter = slowDown({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  delayAfter: 100, // allow 100 requests per 15 minutes at full speed
+  delayMs: 500, // slow down subsequent requests by 500ms per request
+  maxDelayMs: 20000, // maximum delay of 20 seconds
   skip: (req) => req.path === '/health'
 });
 
-app.use('/api/', limiter);
+// Different rate limits for different endpoints
+const authLimiter = createRateLimiter(15 * 60 * 1000, 10, 'Too many authentication attempts');
+const apiLimiter = createRateLimiter(15 * 60 * 1000, 1000, 'Too many API requests');
+const adminLimiter = createRateLimiter(15 * 60 * 1000, 500, 'Too many admin requests');
+
+// Apply rate limiting
+app.use('/api/v1/auth', authLimiter);
+app.use('/api/v1/admin', adminLimiter);
+app.use('/api/', apiLimiter);
+app.use(speedLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Performance tracking middleware
+app.use(trackRequest());
+
+// Telemetry middleware
+app.use(requestTelemetry);
+app.use(businessMetricsTelemetry);
+
+// Cache middleware for API responses
+app.use('/api/v1/admin/analytics', strategies.apiCache(5 * 60 * 1000)); // 5 minutes
+app.use('/api/v1/admin/subscription-analytics', strategies.apiCache(10 * 60 * 1000)); // 10 minutes
+app.use('/api/v1/admin/system-analytics', strategies.apiCache(2 * 60 * 1000)); // 2 minutes
 
 // Health check routes
 app.get('/health', (req, res) => {
@@ -159,28 +184,41 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/api/v1/status', (req, res) => {
+  const metrics = getRealTimeMetrics();
+  const cacheStats = cache.getStats();
+  
+  // Update cache metrics for monitoring
+  updateCacheMetrics(cacheStats.hits, cacheStats.misses);
+  
   res.status(200).json({
     status: 'ok',
     message: 'QuickPe API is running',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    performance: metrics,
+    cache: {
+      hitRate: `${Math.round(cacheStats.hitRate * 100)}%`,
+      entries: cacheStats.keys,
+      memoryUsage: `${Math.round(cacheStats.memoryUsage.heapUsed / 1024 / 1024)}MB`
+    }
   });
 });
 
 // API Routes
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/account', accountRoutes);
-app.use('/api/v1/admin', adminRoutes);
-app.use('/api/v1/user', userRoutes);
-app.use('/api/v1/analytics', analyticsRoutes);
-app.use('/api/v1/analytics-comprehensive', analyticsComprehensiveRoutes);
+app.use('/api/v1/auth', require('./routes/auth'));
+app.use('/api/v1/account', require('./routes/account'));
+app.use('/api/v1/admin', require('./routes/admin'));
+app.use('/api/v1/user', require('./routes/user'));
+app.use('/api/v1/analytics', require('./routes/analytics'));
+app.use('/api/v1/analytics-comprehensive', require('./routes/analytics-comprehensive'));
 app.use('/api/v1/audit', require('./routes/audit'));
 app.use('/api/v1/notifications', require('./routes/notifications'));
-app.use('/api/v1/trade-journal', tradeJournalRoutes);
-// app.use('/api/v1/contact', contactRoutes);
-app.use('/api/v1/ai-assistant', aiAssistantRoutes);
-app.use('/api/logs', logsRoutes);
+app.use('/api/v1/trade-journal', require('./routes/tradeJournal'));
+// app.use('/api/v1/contact', require('./routes/contact'));
+app.use('/api/v1/ai-assistant', require('./routes/ai-assistant'));
+app.use('/api/logs', require('./routes/logs'));
+app.use('/api/v1/data-sync', require('./routes/dataSync'));
 
 // Public market data endpoint
 app.get('/api/v1/market-data', (req, res) => {
@@ -225,7 +263,6 @@ app.get('/api/v1/market-data', (req, res) => {
     }
 });
 
-
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
@@ -256,6 +293,7 @@ app.use('*', (req, res) => {
 });
 
 // Error handling middleware
+app.use(errorTelemetry);
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({
@@ -269,7 +307,7 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     // Connect to MongoDB
-    await databaseConfig.connect();
+    await dbConfig.connect();
     
     // Socket.IO connection handling with enhanced logging and JWT authentication
     io.on('connection', (socket) => {
@@ -386,6 +424,18 @@ async function startServer() {
     
     // Make io available globally for other modules
     app.set('io', io);
+    global.io = io;
+    
+    // Initialize Data Sync Service
+    try {
+      const dataSyncRoutes = require('./routes/dataSync');
+      const dataSyncService = dataSyncRoutes.getDataSyncService();
+      await dataSyncService.initialize();
+      console.log('✅ Data Sync Service initialized');
+    } catch (error) {
+      console.error('⚠️ Data Sync Service initialization failed:', error.message);
+      // Continue without data sync if it fails
+    }
     
     // Start the server
     server.listen(PORT, '0.0.0.0', () => {
@@ -393,6 +443,17 @@ async function startServer() {
       console.log(`📊 Environment: ${process.env.NODE_ENV}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/health`);
       console.log(`🌐 Network access: http://0.0.0.0:${PORT}/health`);
+    });
+    
+    // Start system health monitoring
+    systemHealthTelemetry();
+    
+    // Log server start
+    telemetry.logSystemEvent('server-started', 'QuickPe backend server started', {
+        port: PORT,
+        environment: process.env.NODE_ENV || 'development',
+        nodeVersion: process.version,
+        platform: process.platform
     });
     
     // Handle MongoDB connection errors after initial connection

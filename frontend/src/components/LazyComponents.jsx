@@ -46,23 +46,41 @@ const createSafeLazyComponent = (importFunction, componentName) => {
   );
 };
 
+// Optimized lazy component wrapper with preloading and skeleton support
+const createOptimizedLazyComponent = (importFn, componentName, useSkeleton = false) => {
+  const LazyComponent = lazy(importFn);
+  
+  // Add preload method
+  LazyComponent.preload = importFn;
+  
+  return React.forwardRef((props, ref) => (
+    <Suspense fallback={useSkeleton ? <PageSkeleton type="dashboard" /> : <div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div></div>}>
+      <LazyComponent {...props} ref={ref} />
+    </Suspense>
+  ));
+};
+
 // Safe lazy load all major pages
 export const LazyLanding = createSafeLazyComponent(() => import('../pages/Landing'), 'Landing');
 export const LazySignin = createSafeLazyComponent(() => import('../pages/Signin'), 'Signin');
 export const LazySignup = createSafeLazyComponent(() => import('../pages/Signup'), 'Signup');
-export const LazyDashboardHome = createSafeLazyComponent(() => import('../pages/DashboardHome'), 'DashboardHome');
+export const LazyDashboardHome = createOptimizedLazyComponent(() => import('../pages/DashboardHome'), 'DashboardHome', true);
 export const LazySendMoney = createSafeLazyComponent(() => import('../pages/SendMoney'), 'SendMoney');
-export const LazySendMoneyPage = createSafeLazyComponent(() => import('../pages/SendMoneyPage'), 'SendMoneyPage');
-export const LazyTransactionHistory = createSafeLazyComponent(() => import('../pages/TransactionHistory'), 'TransactionHistory');
-export const LazyAnalytics = createSafeLazyComponent(() => import('../pages/Analytics'), 'Analytics');
-export const LazyAIAssistant = createSafeLazyComponent(() => import('../pages/AIAssistant'), 'AIAssistant');
-export const LazyContact = createSafeLazyComponent(() => import('../pages/Contact'), 'Contact');
+export const LazySendMoneyPage = createOptimizedLazyComponent(() => import('../pages/SendMoneyPage'), 'SendMoneyPage');
+export const LazyTransactionHistory = createOptimizedLazyComponent(() => import('../pages/TransactionHistory'), 'TransactionHistory', true);
+export const LazyAnalytics = createOptimizedLazyComponent(() => import('../pages/Analytics'), 'Analytics', true);
+export const LazyAIAssistant = createOptimizedLazyComponent(() => import('../pages/AIAssistant'), 'AIAssistant');
+export const LazyContact = createOptimizedLazyComponent(() => import('../pages/Contact'), 'Contact');
 export const LazyAuditTrail = createSafeLazyComponent(() => import('../pages/AuditTrail'), 'AuditTrail');
 export const LazyAbout = createSafeLazyComponent(() => import('../pages/About'), 'About');
 export const LazyKPIReports = createSafeLazyComponent(() => import('../pages/KPIReports'), 'KPIReports');
-export const LazyAdminDashboard = createSafeLazyComponent(() => import('../pages/AdminDashboard'), 'AdminDashboard');
+export const LazyAdminDashboard = createOptimizedLazyComponent(() => import('../pages/admin/AdminDashboard'), 'AdminDashboard', true);
+export const LazyAdminLogs = createOptimizedLazyComponent(() => import('../pages/AdminLogs'), 'AdminLogs');
+export const LazyAdminDatabase = createOptimizedLazyComponent(() => import('../pages/AdminDatabase'), 'AdminDatabase');
 export const LazyTradeJournal = createSafeLazyComponent(() => import('../pages/TradeJournalFixed'), 'TradeJournalFixed');
-export const LazySettings = createSafeLazyComponent(() => import('../pages/Settings'), 'Settings');
+export const LazyTradeAnalytics = createOptimizedLazyComponent(() => import('../pages/TradeAnalytics'), 'TradeAnalytics', true);
+export const LazyUpgradePage = createSafeLazyComponent(() => import('../pages/UpgradePage'), 'UpgradePage');
+export const LazySettings = createOptimizedLazyComponent(() => import('../pages/Settings'), 'Settings');
 export const LazyLogViewer = createSafeLazyComponent(() => import('../pages/LogViewer'), 'LogViewer');
 export const LazyNotFound = createSafeLazyComponent(() => import('../pages/NotFound'), 'NotFound');
 
@@ -72,24 +90,6 @@ export const LazyAnalyticsPDFReport = createSafeLazyComponent(() => import('./An
 export const LazyAuditTrailPDFReport = createSafeLazyComponent(() => import('./AuditTrailPDFReport'), 'AuditTrailPDFReport');
 export const LazyMarketDataWidget = createSafeLazyComponent(() => import('./MarketDataWidget'), 'MarketDataWidget');
 export const LazyAdminAIChat = createSafeLazyComponent(() => import('./AdminAIChat'), 'AdminAIChat');
-
-// Enhanced wrapper component with error boundary
-export const SafeLazyComponent = ({ component: Component, fallback, ...props }) => {
-  return (
-    <Suspense fallback={fallback || <PageSkeleton />}>
-      <Component {...props} />
-    </Suspense>
-  );
-};
-
-// Higher-order component for lazy loading with error handling
-export const withSafeLazyLoading = (LazyComponent, LoadingComponent = PageSkeleton) => {
-  return React.forwardRef((props, ref) => (
-    <Suspense fallback={<LoadingComponent />}>
-      <LazyComponent {...props} ref={ref} />
-    </Suspense>
-  ));
-};
 
 // Skeleton components (keeping the existing ones)
 export const DashboardSkeleton = () => (
@@ -217,6 +217,5 @@ export default {
   DashboardSkeleton,
   FormSkeleton,
   AnalyticsSkeleton,
-  SafeLazyComponent,
-  withSafeLazyLoading
+  ProgressiveLoader
 };

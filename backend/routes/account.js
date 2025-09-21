@@ -1,24 +1,28 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const jwt = require('jsonwebtoken');
-const { cache, clearCache, invalidateTransactionCache } = require('../middleware/cache');
-const { authMiddleware } = require('../middleware/index');
-const { cacheMiddleware, invalidateUserCache } = require('../utils/cache');
-const { paginateQuery, monitorQuery, optimizeQuery } = require('../utils/performance');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const AuditLog = require('../models/AuditLog');
 const Notification = require('../models/Notification');
-const { createAuditLog } = require('./audit');
-const { logSocketEvent, logTransaction, logNotification, logRealTimeEvent, logError, logDatabaseOperation } = require('../utils/logger');
+const AddMoneyLimit = require('../models/AddMoneyLimit');
+const { authMiddleware } = require('../middleware/index');
+const { io } = require('../server');
+const queryOptimization = require('../middleware/queryOptimization');
 
 const router = express.Router();
 
-// Get account balance with caching
-router.get("/balance", authMiddleware, cacheMiddleware(60), async (req, res) => {
+// Get account balance - OPTIMIZED
+router.get("/balance", authMiddleware, queryOptimization.monitorQuery('user-balance'), async (req, res) => {
     try {
         // Get user from User model which has balance field
-        const user = await User.findById(req.userId).lean();
-
+        const cacheKey = `user-balance-${req.userId}`;
+        
+        const user = await queryOptimization.getCachedQuery(cacheKey, async () => {
+            return User.findById(req.userId)
+                .select('balance firstName lastName quickpeId')
+                .lean();
+        }, 10000); // Cache for 10 seconds
+        
         if (!user) {
             return res.status(404).json({
                 message: "User not found"
@@ -115,162 +119,81 @@ router.post("/deposit", authMiddleware, async (req, res) => {
     }
 });
 
-// GET /api/v1/account/transactions - Get user transactions with pagination and filters
-router.get('/transactions', authMiddleware, cacheMiddleware(120), async (req, res) => {
+// Get user transactions - OPTIMIZED
+router.get('/transactions', authMiddleware, queryOptimization.monitorQuery('user-transactions'), async (req, res) => {
     try {
-        const {
-            page = 1,
-            limit = 10,
-            search = '',
-            type = 'all', // all, credit, debit
-            dateFilter = 'all', // all, today, last3, last30
-            from_date,
-            to_date,
-            min_amount,
-            max_amount
-        } = req.query;
-
-        const pageNum = parseInt(page);
-        const limitNum = parseInt(limit);
-        const skip = (pageNum - 1) * limitNum;
-
-        // Build base filter using the new Transaction model structure
-        let baseFilter = {
-            userId: req.userId
-        };
-
-        // Add type filter
-        if (type === 'credit' || type === 'debit') {
-            baseFilter.type = type;
-        }
-
-        // Add date filters - handle both dateFilter and custom date range
-        if (dateFilter !== 'all' || from_date || to_date) {
-            baseFilter.timestamp = {};
-            
-            if (dateFilter !== 'all') {
-                const now = new Date();
-                let startDate;
-                
-                switch (dateFilter) {
-                    case 'today':
-                        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                        break;
-                    case 'last3':
-                        startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-                        break;
-                    case 'last30':
-                        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                        break;
-                }
-                
-                if (startDate) {
-                    baseFilter.timestamp.$gte = startDate;
-                }
-            }
-            
-            // Custom date range overrides dateFilter
-            if (from_date) {
-                baseFilter.timestamp.$gte = new Date(from_date);
-            }
-            if (to_date) {
-                baseFilter.timestamp.$lte = new Date(to_date);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const type = req.query.type;
+        const dateFilter = req.query.dateFilter;
+        
+        // Build optimized filters
+        const filters = { type, dateFilter };
+        if (dateFilter && dateFilter !== 'all') {
+            const now = new Date();
+            switch(dateFilter) {
+                case 'today':
+                    filters.startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    break;
+                case 'last3days':
+                    filters.startDate = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000));
+                    break;
+                case 'last30days':
+                    filters.startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+                    break;
             }
         }
-
-        // Add amount filters
-        if (min_amount || max_amount) {
-            baseFilter.amount = {};
-            if (min_amount) {
-                baseFilter.amount.$gte = parseFloat(min_amount);
-            }
-            if (max_amount) {
-                baseFilter.amount.$lte = parseFloat(max_amount);
-            }
-        }
-
-        // Add search filter - enhanced to search user names
-        if (search) {
-            const searchRegex = new RegExp(search, 'i');
+        
+        // Use optimized transaction query with caching
+        const cacheKey = `user-transactions-${req.userId}-${page}-${limit}-${search}-${type}-${dateFilter}`;
+        
+        const result = await queryOptimization.getCachedQuery(cacheKey, async () => {
+            let transactionsQuery = queryOptimization.optimizedTransactionQuery(req.userId, filters);
             
-            // First, find users matching the search term
-            const matchingUsers = await User.find({
-                $or: [
-                    { firstName: searchRegex },
-                    { lastName: searchRegex },
-                    { quickpeId: searchRegex }
-                ]
-            }).select('_id').lean();
-            
-            const matchingUserIds = matchingUsers.map(user => user._id);
-            
-            baseFilter.$or = [
-                { description: searchRegex },
-                { recipient: searchRegex },
-                { sender: searchRegex },
-                { transactionId: searchRegex },
-                { fromUserId: { $in: matchingUserIds } },
-                { toUserId: { $in: matchingUserIds } }
-            ];
-        }
-
-        // Get total count for pagination
-        const total = await Transaction.countDocuments(baseFilter);
-
-        // Get all transactions (remove limit)
-        const transactions = await Transaction.find(baseFilter)
-            .sort({ timestamp: -1 })
-            .lean();
-
-        // Populate user names for each transaction
-        const enrichedTransactions = await Promise.all(
-            transactions.map(async (transaction) => {
-                let otherUser = null;
-                
-                if (transaction.category === 'transfer' || transaction.category === 'Transfer') {
-                    // For transfers, get the other party's information
-                    if (transaction.type === 'debit') {
-                        // User sent money - get recipient info
-                        if (transaction.recipientId) {
-                            otherUser = await User.findById(transaction.recipientId)
-                                .select('firstName lastName quickpeId')
-                                .lean();
-                        }
-                    } else if (transaction.type === 'credit') {
-                        // User received money - get sender info
-                        if (transaction.senderId) {
-                            otherUser = await User.findById(transaction.senderId)
-                                .select('firstName lastName quickpeId')
-                                .lean();
-                        }
-                    }
-                }
-                
-                return {
-                    ...transaction,
-                    otherUser: otherUser ? {
-                        name: `${otherUser.firstName} ${otherUser.lastName}`.trim(),
-                        quickpeId: otherUser.quickpeId
-                    } : null
+            // Add search if provided
+            if (search) {
+                const searchQuery = {
+                    userId: new mongoose.Types.ObjectId(req.userId),
+                    $or: [
+                        { transactionId: { $regex: search, $options: 'i' } },
+                        { description: { $regex: search, $options: 'i' } }
+                    ]
                 };
-            })
-        );
-
+                transactionsQuery = Transaction.find(searchQuery).sort({ timestamp: -1 }).lean();
+            }
+            
+            // Apply pagination
+            const transactions = await queryOptimization.paginate(
+                transactionsQuery, 
+                page, 
+                limit
+            );
+            
+            // Get total count
+            const total = await Transaction.countDocuments(
+                queryOptimization.optimizedTransactionQuery(req.userId, filters).getQuery()
+            );
+            
+            return { transactions, total };
+        }, 30000); // Cache for 30 seconds
+        
+        const { transactions, total } = result;
+        
         res.set({
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0'
         }).json({
-            transactions: enrichedTransactions,
+            transactions,
             pagination: {
-                page: pageNum,
-                limit: limitNum,
+                page,
+                limit,
                 total,
-                pages: Math.ceil(total / limitNum),
-                has_more: skip + limitNum < total
+                pages: Math.ceil(total / limit),
+                has_more: (page - 1) * limit + transactions.length < total
             }
         });
-
     } catch (error) {
         console.error('Transaction history error:', error);
         res.status(500).json({
@@ -282,262 +205,146 @@ router.get('/transactions', authMiddleware, cacheMiddleware(120), async (req, re
 
 // Transfer money with atomic MongoDB transactions and structured logging
 router.post("/transfer", authMiddleware, async (req, res) => {
-  try {
-    const { amount, to, toQuickpeId } = req.body;
-    const quickpeId = toQuickpeId || to;
-    
-    logTransaction('transfer_start', null, req.userId, amount, { recipientQuickpeId: quickpeId });
-    
-    if (!quickpeId) {
-      return res.status(400).json({
-        message: "Recipient QuickPe ID is required"
-      });
-    }
-
-    // Validate amount
-    if (!amount || amount <= 0) {
-      return res.status(400).json({
-        message: "Invalid amount"
-      });
-    }
-
-    let result;
-    
     try {
-      // Get sender and receiver details with explicit field selection
-      const sender = await User.findById(req.userId).select('firstName lastName email quickpeId balance');
-      const receiver = await User.findOne({ quickpeId }).select('firstName lastName email quickpeId balance');
-      
-      if (!sender) {
-        logTransaction('transfer_failed', null, req.userId, amount, { error: 'Sender not found' });
-        return res.status(404).json({
-          message: "Sender not found"
-        });
-      }
-      
-      if (!receiver) {
-        logTransaction('transfer_failed', null, req.userId, amount, { error: 'Receiver not found', quickpeId });
-        return res.status(404).json({
-          message: "Receiver not found"
-        });
-      }
-      
-      if (sender.balance < amount) {
-        logTransaction('transfer_failed', null, req.userId, amount, { error: 'Insufficient balance', balance: sender.balance });
-        return res.status(400).json({
-          message: "Insufficient balance"
-        });
-      }
-      
-      logDatabaseOperation('balance_update', 'users', sender._id, { operation: 'debit', amount });
-      // Update balances
-      await User.updateOne(
-        { _id: req.userId },
-        { $inc: { balance: -amount } }
-      );
-      
-      logDatabaseOperation('balance_update', 'users', receiver._id, { operation: 'credit', amount });
-      await User.updateOne(
-        { quickpeId },
-        { $inc: { balance: amount } }
-      );
-      
-      // Create debit transaction for sender
-      const debitTransaction = new Transaction({
-        userId: req.userId,
-        type: 'debit',
-        amount,
-        description: `Transfer to ${receiver.firstName} ${receiver.lastName}`,
-        category: 'Transfer',
-        recipientId: receiver._id,
-        recipientQuickpeId: quickpeId
-      });
-      
-      // Create credit transaction for receiver
-      const creditTransaction = new Transaction({
-        userId: receiver._id,
-        type: 'credit',
-        amount,
-        description: `Received from ${sender.firstName} ${sender.lastName}`,
-        category: 'Transfer',
-        senderId: req.userId,
-        senderQuickpeId: sender.quickpeId
-      });
-      
-      logDatabaseOperation('transaction_create', 'transactions', null, { type: 'debit', userId: req.userId, amount });
-      await debitTransaction.save();
-      
-      logDatabaseOperation('transaction_create', 'transactions', null, { type: 'credit', userId: receiver._id, amount });
-      await creditTransaction.save();
-      
-      // Get updated balances with explicit field selection
-      const updatedSender = await User.findById(req.userId).select('firstName lastName email quickpeId balance');
-      const updatedReceiver = await User.findById(receiver._id).select('firstName lastName email quickpeId balance');
+        const { amount, to, toQuickpeId } = req.body;
+        const quickpeId = toQuickpeId || to;
         
-      result = {
-        debitTransaction,
-        creditTransaction,
-        sender: updatedSender,
-        receiver: updatedReceiver
-      };
+        // Validate input
+        if (!amount || amount <= 0) {
+            return res.status(400).json({
+                message: "Invalid amount"
+            });
+        }
+        
+        if (!quickpeId) {
+            return res.status(400).json({
+                message: "Recipient QuickPe ID is required"
+            });
+        }
+        
+        // Get sender and receiver
+        const sender = await User.findById(req.userId);
+        const receiver = await User.findOne({ quickpeId });
+        
+        if (!sender) {
+            return res.status(404).json({
+                message: "Sender not found"
+            });
+        }
+        
+        if (!receiver) {
+            return res.status(404).json({
+                message: "Receiver not found"
+            });
+        }
+        
+        // Check sufficient balance
+        if (sender.balance < amount) {
+            return res.status(400).json({
+                message: "Insufficient balance"
+            });
+        }
+        
+        // Use raw MongoDB operations for better performance
+        const db = mongoose.connection.db;
+        
+        // Update sender balance
+        await db.collection('users').updateOne(
+            { _id: new mongoose.Types.ObjectId(req.userId) },
+            { $inc: { balance: -amount } }
+        );
+        
+        // Update receiver balance
+        await db.collection('users').updateOne(
+            { quickpeId },
+            { $inc: { balance: amount } }
+        );
+        
+        // Create transactions
+        const debitTransaction = new Transaction({
+            userId: req.userId,
+            type: 'debit',
+            amount,
+            description: `Transfer to ${receiver.firstName} ${receiver.lastName}`,
+            category: 'Transfer'
+        });
+        
+        const creditTransaction = new Transaction({
+            userId: receiver._id,
+            type: 'credit',
+            amount,
+            description: `Received from ${sender.firstName} ${sender.lastName}`,
+            category: 'Transfer'
+        });
+        
+        await debitTransaction.save();
+        await creditTransaction.save();
+        
+        // Get updated balances
+        const updatedSender = await User.findById(req.userId).select('firstName lastName email quickpeId balance');
+        const updatedReceiver = await User.findById(receiver._id).select('firstName lastName email quickpeId balance');
+        
+        // Create notifications
+        const senderNotification = new Notification({
+            userId: req.userId,
+            type: 'money_sent',
+            title: 'Money Sent',
+            message: `You sent ₹${amount} to ${receiver.firstName} ${receiver.lastName}`,
+            isRead: false
+        });
+        
+        const receiverNotification = new Notification({
+            userId: receiver._id,
+            type: 'money_received',
+            title: 'Money Received',
+            message: `You received ₹${amount} from ${sender.firstName} ${sender.lastName}`,
+            isRead: false
+        });
+        
+        await senderNotification.save();
+        await receiverNotification.save();
+        
+        // Emit real-time events
+        const io = req.app.get('io');
+        if (io) {
+            // Emit to sender
+            io.to(`user_${req.userId}`).emit('transaction:new', {
+                transaction: debitTransaction,
+                balance: updatedSender.balance
+            });
+            
+            io.to(`user_${req.userId}`).emit('notification:new', senderNotification);
+            
+            // Emit to receiver
+            io.to(`user_${receiver._id}`).emit('transaction:new', {
+                transaction: creditTransaction,
+                balance: updatedReceiver.balance
+            });
+            
+            io.to(`user_${receiver._id}`).emit('notification:new', receiverNotification);
+        }
+        
+        res.json({
+            success: true,
+            message: "Transfer successful",
+            transaction: {
+                debit: debitTransaction,
+                credit: creditTransaction
+            },
+            balances: {
+                sender: updatedSender.balance,
+                receiver: updatedReceiver.balance
+            }
+        });
+        
     } catch (error) {
-      logTransaction('transfer_failed', null, req.userId, amount, { error: error.message });
-      console.error('Transfer error:', error);
-      return res.status(500).json({
-        message: "Transfer failed",
-        error: error.message
-      });
+        console.error('Transfer error:', error);
+        res.status(500).json({
+            success: false,
+            message: "Transfer failed",
+            error: error.message
+        });
     }
-
-    // Emit real-time events to both users
-    const io = req.app.get('io');
-    if (io) {
-      // Emit standardized transaction events to sender
-      logRealTimeEvent('transaction:new', req.userId, req.userId, { type: 'debit', amount });
-      io.to(`user_${req.userId}`).emit('transaction:new', {
-        transaction: result.debitTransaction,
-        balance: result.sender.balance
-      });
-      
-      logRealTimeEvent('balance:update', req.userId, req.userId, { balance: result.sender.balance });
-      io.to(`user_${req.userId}`).emit('balance:update', {
-        balance: result.sender.balance,
-        userId: req.userId
-      });
-      
-      // Emit standardized transaction events to receiver
-      logRealTimeEvent('transaction:new', req.userId, result.receiver._id.toString(), { type: 'credit', amount });
-      io.to(`user_${result.receiver._id}`).emit('transaction:new', {
-        transaction: result.creditTransaction,
-        balance: result.receiver.balance
-      });
-      
-      logRealTimeEvent('balance:update', req.userId, result.receiver._id.toString(), { balance: result.receiver.balance });
-      io.to(`user_${result.receiver._id}`).emit('balance:update', {
-        balance: result.receiver.balance,
-        userId: result.receiver._id.toString()
-      });
-      
-      // Emit cache invalidation to both users
-      logRealTimeEvent('cache:invalidate', req.userId, req.userId, { type: 'transactions' });
-      io.to(`user_${req.userId}`).emit('cache:invalidate', { type: 'transactions' });
-      
-      logRealTimeEvent('cache:invalidate', req.userId, result.receiver._id.toString(), { type: 'transactions' });
-      io.to(`user_${result.receiver._id}`).emit('cache:invalidate', { type: 'transactions' });
-      
-      // Emit analytics update events
-      logRealTimeEvent('analytics:update', req.userId, req.userId, { type: 'transaction' });
-      io.to(`user_${req.userId}`).emit('analytics:update', { type: 'transaction' });
-      
-      logRealTimeEvent('analytics:update', req.userId, result.receiver._id.toString(), { type: 'transaction' });
-      io.to(`user_${result.receiver._id}`).emit('analytics:update', { type: 'transaction' });
-    }
-
-    // Create notifications for both users with proper user names
-    const senderForNotification = await User.findById(req.userId).select('firstName lastName');
-    const receiverForNotification = await User.findById(result.receiver._id).select('firstName lastName');
-    
-    const senderMessage = `You sent ₹${amount} to ${receiverForNotification?.firstName} ${receiverForNotification?.lastName}`;
-    const receiverMessage = `You received ₹${amount} from ${senderForNotification?.firstName} ${senderForNotification?.lastName}`;
-    
-    const senderNotification = new Notification({
-      userId: req.userId,
-      type: 'TRANSFER_SENT',
-      title: 'Money Sent',
-      message: senderMessage,
-      data: { transactionId: result.debitTransaction._id }
-    });
-    
-    const receiverNotification = new Notification({
-      userId: result.receiver._id,
-      type: 'TRANSFER_RECEIVED',
-      title: 'Money Received',
-      message: receiverMessage,
-      data: { transactionId: result.creditTransaction._id }
-    });
-    
-    logNotification('create', null, req.userId, 'transaction', { action: 'money_sent', amount });
-    logNotification('create', null, result.receiver._id.toString(), 'transaction', { action: 'money_received', amount });
-    
-    await Promise.all([
-      senderNotification.save(),
-      receiverNotification.save()
-    ]);
-    
-    // Emit notifications via socket
-    if (io) {
-      logRealTimeEvent('notification:new', req.userId, req.userId, { type: 'transaction', title: 'Money Sent' });
-      io.to(`user_${req.userId}`).emit('notification:new', {
-        _id: senderNotification._id,
-        title: senderNotification.title,
-        message: senderNotification.message,
-        timestamp: senderNotification.createdAt || new Date(),
-        transactionId: result.debitTransaction._id.toString(),
-        read: false,
-        type: senderNotification.type,
-        data: senderNotification.data
-      });
-      
-      logRealTimeEvent('notification:new', req.userId, result.receiver._id.toString(), { type: 'transaction', title: 'Money Received' });
-      io.to(`user_${result.receiver._id}`).emit('notification:new', {
-        _id: receiverNotification._id,
-        title: receiverNotification.title,
-        message: receiverNotification.message,
-        timestamp: receiverNotification.createdAt || new Date(),
-        transactionId: result.creditTransaction._id.toString(),
-        read: false,
-        type: receiverNotification.type,
-        data: receiverNotification.data
-      });
-    }
-
-    // Create audit logs with real-time updates
-    const { createAuditLog } = require('./audit');
-    await createAuditLog(req.userId, 'money_sent', 'transaction', result.debitTransaction._id, {
-      amount,
-      recipient: result.receiver.name,
-      recipient_email: result.receiver.email,
-      transactionId: result.debitTransaction._id
-    }, req);
-    
-    await createAuditLog(result.receiver._id, 'money_received', 'transaction', result.creditTransaction._id, {
-      amount,
-      sender: result.sender.name,
-      sender_email: result.sender.email,
-      transactionId: result.creditTransaction._id
-    }, req);
-
-    logTransaction('transfer_success', result.debitTransaction._id, req.userId, amount, { 
-      recipientId: result.receiver._id,
-      senderBalance: result.sender.balance,
-      receiverBalance: result.receiver.balance,
-      debitTransactionId: result.debitTransaction._id,
-      creditTransactionId: result.creditTransaction._id
-    });
-
-    // Invalidate cache for both sender and receiver
-    invalidateUserCache(req.userId);
-    invalidateUserCache(result.receiver._id);
-
-    res.json({
-      message: "Transfer successful",
-      transactionId: result.debitTransaction._id,
-      newBalance: result.sender.balance
-    });
-    
-  } catch (error) {
-    logError(error, { 
-      category: 'transfer', 
-      userId: req.userId, 
-      amount: req.body.amount, 
-      recipientQuickpeId: req.body.toQuickpeId || req.body.to 
-    });
-    
-    res.status(400).json({ 
-      success: false, 
-      message: error.message 
-    });
-  }
 });
 
 module.exports = router;
