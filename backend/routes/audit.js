@@ -390,6 +390,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 router.get('/download-trail', authMiddleware, async (req, res) => {
     try {
         const userId = req.userId;
+        const { fromDate, toDate, limit = 50 } = req.query;
         
         // Get user details
         const User = require('../models/User');
@@ -399,9 +400,25 @@ router.get('/download-trail', authMiddleware, async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
         
-        // Get all audit logs for this user
-        const auditLogs = await AuditLog.find({ actor_user_id: userId.toString() })
+        // Build query with date filters
+        const query = { actor_user_id: userId.toString() };
+        
+        if (fromDate || toDate) {
+            query.created_at = {};
+            if (fromDate) {
+                query.created_at.$gte = new Date(fromDate);
+            }
+            if (toDate) {
+                const endDate = new Date(toDate);
+                endDate.setHours(23, 59, 59, 999);
+                query.created_at.$lte = endDate;
+            }
+        }
+        
+        // Get audit logs with limit (default 50 for latest trails)
+        const auditLogs = await AuditLog.find(query)
             .sort({ created_at: -1 })
+            .limit(parseInt(limit))
             .lean();
         
         // Import PDFDocument

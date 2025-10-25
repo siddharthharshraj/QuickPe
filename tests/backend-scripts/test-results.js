@@ -1,7 +1,7 @@
-import express from 'express';
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const express = require('express').default || require('express');;
+const fs = require('fs/promises').default || require('fs/promises');;
+const path = require('path').default || require('path');;
+const { fileURLToPath } = require('url');;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,4 +70,4 @@ router.get('/all', async (req, res) => {
     }
 });
 
-export default router;
+module.exports = router;

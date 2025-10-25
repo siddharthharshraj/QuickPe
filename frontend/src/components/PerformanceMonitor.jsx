@@ -52,15 +52,15 @@ export const PerformanceMonitor = memo(() => {
     measureMemory();
     measureLoadTime();
 
-    // Update memory periodically (reduced frequency)
-    const memoryInterval = setInterval(measureMemory, 10000);
+    // Performance monitoring disabled - was causing page refreshes
+    // const memoryInterval = setInterval(measureMemory, 10000);
 
     // Show/hide based on development mode
     setIsVisible(process.env.NODE_ENV === 'development');
 
     return () => {
       cancelAnimationFrame(animationId);
-      clearInterval(memoryInterval);
+      // clearInterval(memoryInterval); // Disabled
     };
   }, []);
 

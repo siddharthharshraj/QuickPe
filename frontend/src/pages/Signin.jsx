@@ -82,20 +82,27 @@ export const Signin = () => {
             }
             
             // Store authentication data
-            localStorage.setItem("token", response.data.data.token);
+            const userData = response.data.data.user;
+            const token = response.data.data.token;
+            
+            localStorage.setItem("token", token);
+            localStorage.setItem("userId", userData.id);
             localStorage.setItem("user", JSON.stringify({
-                id: response.data.data.user.id,
-                firstName: response.data.data.user.firstName,
-                lastName: response.data.data.user.lastName,
-                email: response.data.data.user.email,
-                quickpeId: response.data.data.user.quickpeId,
-                balance: response.data.data.user.balance,
-                role: response.data.data.user.role,
-                isAdmin: response.data.data.user.isAdmin,
+                id: userData.id,
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                email: userData.email,
+                quickpeId: userData.quickpeId,
+                balance: userData.balance,
+                role: userData.role,
+                isAdmin: userData.isAdmin || false,
                 lastLogin: new Date().toISOString()
             }));
             
-            navigate("/dashboard");
+            console.log('✅ Stored user data and redirecting to dashboard');
+            
+            // Force page reload to trigger AuthContext re-check
+            window.location.href = '/dashboard';
         } catch (err) {
             console.error('❌ Signin failed:', err);
             console.error('Error response:', err.response?.data);
@@ -375,8 +382,18 @@ export const Signin = () => {
                                 </button>
                             </form>
 
+                            {/* Forgot Password Link */}
+                            <div className="mt-6 text-center">
+                                <Link
+                                    to="/reset-password"
+                                    className="text-sm text-emerald-600 hover:text-emerald-700 font-semibold transition-colors"
+                                >
+                                    Forgot Password?
+                                </Link>
+                            </div>
+
                             {/* Sign Up Link */}
-                            <div className="mt-8 text-center">
+                            <div className="mt-4 text-center">
                                 <p className="text-slate-600">
                                     Don't have an account?{' '}
                                     <Link

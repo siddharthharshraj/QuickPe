@@ -7,15 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 export const Footer = () => {
-    const [currentDate, setCurrentDate] = useState(new Date());
-
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentDate(new Date());
-        }, 60000); // Update every minute for real-time month/year updates
-
-        return () => clearInterval(timer);
-    }, []);
+    const [currentDate] = useState(new Date());
 
     const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
     const currentYear = currentDate.getFullYear();

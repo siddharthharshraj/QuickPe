@@ -1,9 +1,9 @@
-import express from 'express';
-import { authMiddleware } from '../middleware/index.js';
+const express = require('express');
+const { authMiddleware } = require('../middleware');
 // Remove Transaction import since it's causing issues
-// import Transaction from '../models/Transaction.js';
+// const Transaction = require('../models/Transaction');
 // Remove User import since it's causing issues
-// import { User as UserModel } from '../models/User.js';
+// const User = require('../models/User');
 
 const router = express.Router();
 
@@ -22,8 +22,9 @@ const generateNotificationsFromTransactions = async (userId) => {
 };
 
 // Export function to add notifications
-export const addNotification = (notification) => {
+const addNotification = (notification) => {
     mockNotifications.push(notification);
+    return notification;
 };
 
 // Mark all notifications as read for a user
@@ -126,4 +127,4 @@ router.post('/create', authMiddleware, async (req, res) => {
     }
 });
 
-export default router;
+module.exports = router;

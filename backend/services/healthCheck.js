@@ -1,9 +1,9 @@
 // Comprehensive health check service for production monitoring
-import mongoose from 'mongoose';
-import { performance } from 'perf_hooks';
-import os from 'os';
-import fs from 'fs/promises';
-import path from 'path';
+const mongoose = require('mongoose');
+const { performance } = require('perf_hooks');
+const os = require('os');
+const fs = require('fs/promises');
+const path = require('path');
 
 class HealthCheckService {
   constructor() {
@@ -437,4 +437,4 @@ class HealthCheckService {
 // Create singleton instance
 const healthCheckService = new HealthCheckService();
 
-export default healthCheckService;
+module.exports = healthCheckService;

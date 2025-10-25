@@ -1,0 +1,167 @@
+# QuickPe Load Testing Configuration
+# Using Artillery.io for load testing
+# Target: 150 concurrent users
+
+config:
+  target: "http://localhost:5001"
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 10
+      name: "Warm-up"
+    
+    # Ramp-up phase
+    - duration: 120
+      arrivalRate: 25
+      rampTo: 50
+      name: "Ramp-up to 50 users"
+    
+    # Sustained load - 150 concurrent users
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained load - 150 concurrent users"
+    
+    # Spike test
+    - duration: 60
+      arrivalRate: 100
+      name: "Spike test - 200 concurrent users"
+    
+    # Cool-down
+    - duration: 60
+      arrivalRate: 10
+      name: "Cool-down"
+
+  processor: "./load-test-processor.js"
+  
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 1  # Max 1% error rate
+    p95: 2000        # 95th percentile < 2s
+    p99: 5000        # 99th percentile < 5s
+
+  # Variables
+  variables:
+    testEmail: "loadtest{{ $randomNumber() }}@test.com"
+    testPassword: "Test123!"
+
+scenarios:
+  # Scenario 1: User Signup Flow
+  - name: "User Signup"
+    weight: 10
+    flow:
+      - post:
+          url: "/api/v1/auth/signup"
+          json:
+            firstName: "Load"
+            lastName: "Test{{ $randomNumber() }}"
+            email: "{{ testEmail }}"
+            password: "{{ testPassword }}"
+            phone: "{{ $randomNumber() }}"
+          capture:
+            - json: "$.data.token"
+              as: "authToken"
+            - json: "$.data.user.quickpeId"
+              as: "quickpeId"
+          expect:
+            - statusCode: 201
+            - contentType: json
+            - hasProperty: data.user.balance
+            - equals:
+                - "{{ data.user.balance }}"
+                - 10000
+
+  # Scenario 2: User Login
+  - name: "User Login"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/v1/auth/signin"
+          json:
+            email: "test@example.com"
+            password: "Test123!"
+          capture:
+            - json: "$.data.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+
+  # Scenario 3: Get Balance
+  - name: "Get Balance"
+    weight: 30
+    flow:
+      - function: "generateAuthToken"
+      - get:
+          url: "/api/v1/account/balance"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: balance
+
+  # Scenario 4: Get Transactions
+  - name: "Get Transactions"
+    weight: 25
+    flow:
+      - function: "generateAuthToken"
+      - get:
+          url: "/api/v1/account/transactions?page=1&limit=10"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: transactions
+            - hasProperty: pagination
+
+  # Scenario 5: Money Transfer
+  - name: "Money Transfer"
+    weight: 10
+    flow:
+      - function: "generateAuthToken"
+      - post:
+          url: "/api/v1/account/transfer"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            toQuickpeId: "QP20251234"
+            amount: 100
+          expect:
+            - statusCode: [200, 400]  # May fail if insufficient balance
+
+  # Scenario 6: Health Check
+  - name: "Health Check"
+    weight: 5
+    flow:
+      - get:
+          url: "/api/health"
+          expect:
+            - statusCode: 200
+            - hasProperty: status
+            - equals:
+                - "{{ status }}"
+                - "healthy"
+
+  # Scenario 7: Detailed Health Check
+  - name: "Detailed Health Check"
+    weight: 3
+    flow:
+      - get:
+          url: "/api/health/detailed"
+          expect:
+            - statusCode: 200
+            - hasProperty: checks.database
+            - hasProperty: checks.memory
+
+  # Scenario 8: Database Health
+  - name: "Database Health"
+    weight: 2
+    flow:
+      - get:
+          url: "/api/health/database"
+          expect:
+            - statusCode: 200
+            - hasProperty: connection
+
+# Custom metrics
+plugins:
+  expect: {}
+  metrics-by-endpoint: {}

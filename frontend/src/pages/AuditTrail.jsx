@@ -27,11 +27,28 @@ const AuditTrail = () => {
     });
     const [logsLoading, setLogsLoading] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportDates, setExportDates] = useState({
+        fromDate: '',
+        toDate: ''
+    });
 
     useEffect(() => {
         fetchAuditStats();
         fetchUserInfo();
         fetchAuditLogs();
+        
+        // Set up real-time updates
+        const handleAuditUpdate = () => {
+            fetchAuditLogs();
+            fetchAuditStats();
+        };
+        
+        window.addEventListener('auditLogUpdate', handleAuditUpdate);
+        
+        return () => {
+            window.removeEventListener('auditLogUpdate', handleAuditUpdate);
+        };
     }, []);
 
     useEffect(() => {
@@ -181,10 +198,25 @@ const AuditTrail = () => {
         { value: 'pdf_exported', label: 'PDF Exported' }
     ];
 
-    const downloadAuditTrail = async () => {
+    const downloadAuditTrail = async (hasCustomDates = false) => {
         try {
             setLoading(true);
-            const response = await apiClient.get('/audit/download-trail', {
+            
+            // Build query params for custom date export
+            const queryParams = new URLSearchParams();
+            if (hasCustomDates) {
+                if (exportDates.fromDate) {
+                    queryParams.append('fromDate', exportDates.fromDate);
+                }
+                if (exportDates.toDate) {
+                    queryParams.append('toDate', exportDates.toDate);
+                }
+            }
+            // Always limit to 50 latest trails
+            queryParams.append('limit', '50');
+            
+            const endpoint = `/audit/download-trail${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+            const response = await apiClient.get(endpoint, {
                 responseType: 'blob'
             });
             
@@ -195,7 +227,8 @@ const AuditTrail = () => {
             
             // Get filename from response headers or create default
             const contentDisposition = response.headers['content-disposition'];
-            let filename = 'QuickPe-AuditTrail.pdf';
+            const dateStr = new Date().toISOString().split('T')[0];
+            let filename = `QuickPe-AuditTrail-${dateStr}.pdf`;
             if (contentDisposition) {
                 const filenameMatch = contentDisposition.match(/filename="(.+)"/);
                 if (filenameMatch) {
@@ -259,6 +292,15 @@ const AuditTrail = () => {
                                     filename="audit-trail-report"
                                 />
                             )}
+                            
+                            <button
+                                onClick={() => setShowExportModal(true)}
+                                disabled={loading}
+                                className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <DocumentArrowDownIcon className="h-5 w-5" />
+                                <span>Export PDF</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -530,6 +572,76 @@ const AuditTrail = () => {
                     </div>
                 </motion.div>
             </div>
+
+            {/* Export PDF Modal */}
+            {showExportModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+                    >
+                        <h3 className="text-xl font-bold text-slate-900 mb-4">Export Audit Trail PDF</h3>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    From Date (Optional)
+                                </label>
+                                <input
+                                    type="date"
+                                    value={exportDates.fromDate}
+                                    onChange={(e) => setExportDates(prev => ({ ...prev, fromDate: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    To Date (Optional)
+                                </label>
+                                <input
+                                    type="date"
+                                    value={exportDates.toDate}
+                                    onChange={(e) => setExportDates(prev => ({ ...prev, toDate: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                            </div>
+                            
+                            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <p className="text-sm text-blue-800">
+                                    {exportDates.fromDate || exportDates.toDate 
+                                        ? `Export will include up to 50 trails from selected date range.`
+                                        : `Leave dates empty to export the latest 50 audit trails.`
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex space-x-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setShowExportModal(false);
+                                    setExportDates({ fromDate: '', toDate: '' });
+                                }}
+                                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    downloadAuditTrail(exportDates.fromDate || exportDates.toDate);
+                                    setShowExportModal(false);
+                                }}
+                                disabled={loading}
+                                className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                            >
+                                {loading ? 'Exporting...' : 'Export PDF'}
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
         </div>
     );
 };

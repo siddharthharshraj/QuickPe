@@ -24,6 +24,14 @@ const {
 } = require('./middleware/telemetryMiddleware');
 const { logSocketEvent, logError } = require('./utils/logger');
 
+// Import routes
+const userRoutes = require('./routes/user');
+const accountRoutes = require('./routes/account');
+const authRoutes = require('./routes/auth');
+const analyticsRoutes = require('./routes/analytics');
+const notificationRoutes = require('./routes/notification');
+const auditRoutes = require('./routes/audit');
+
 const app = express();
 const server = http.createServer(app);
 const io = new socketIo.Server(server, {
@@ -151,10 +159,20 @@ const apiLimiter = createRateLimiter(15 * 60 * 1000, 1000, 'Too many API request
 const adminLimiter = createRateLimiter(15 * 60 * 1000, 500, 'Too many admin requests');
 
 // Apply rate limiting
-app.use('/api/v1/auth', authLimiter);
-app.use('/api/v1/admin', adminLimiter);
-app.use('/api/', apiLimiter);
 app.use(speedLimiter);
+app.use('/auth', authLimiter);
+app.use('/api', apiLimiter);
+
+// Use routes
+app.use('/user', userRoutes);
+app.use('/account', accountRoutes);
+app.use('/auth', authRoutes);
+app.use('/analytics', analyticsRoutes);
+app.use('/notifications', notificationRoutes);
+app.use('/audit', auditRoutes);
+
+// Apply compression to all routes
+app.use(compression());
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -205,16 +223,20 @@ app.get('/api/v1/status', (req, res) => {
   });
 });
 
+// Health Check Routes (no auth required)
+app.use('/api/health', require('./routes/health'));
+
 // API Routes
 app.use('/api/v1/auth', require('./routes/auth'));
 app.use('/api/v1/account', require('./routes/account'));
 app.use('/api/v1/admin', require('./routes/admin'));
 app.use('/api/v1/user', require('./routes/user'));
-app.use('/api/v1/analytics', require('./routes/analytics'));
-app.use('/api/v1/analytics-comprehensive', require('./routes/analytics-comprehensive'));
+app.use('/api/v1/analytics', require('./routes/analytics-v2')); // Production-grade analytics
 app.use('/api/v1/audit', require('./routes/audit'));
 app.use('/api/v1/notifications', require('./routes/notifications'));
-app.use('/api/v1/trade-journal', require('./routes/tradeJournal'));
+app.use('/api/v1/money-requests', require('./routes/moneyRequest')); // Money request flow
+// Trade Journal route removed - moved to separate TradeJournal folder
+// app.use('/api/v1/trade-journal', require('./routes/tradeJournal'));
 // app.use('/api/v1/contact', require('./routes/contact'));
 app.use('/api/v1/ai-assistant', require('./routes/ai-assistant'));
 app.use('/api/logs', require('./routes/logs'));

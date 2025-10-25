@@ -72,16 +72,8 @@ const createOptimizedLazyComponent = (importFn, componentName, useSkeleton = fal
   // Add preload method
   LazyComponent.preload = importFn;
   
-  return React.forwardRef((props, ref) => {
-    const [isPending, startTransition] = React.useTransition();
-    
-    // Preload the component when it mounts
-    React.useEffect(() => {
-      startTransition(() => {
-        LazyComponent.preload();
-      });
-    }, []);
-    
+  // Return the component wrapped in Suspense (no forwardRef wrapper)
+  const WrappedComponent = (props) => {
     const fallback = useSkeleton ? (
       <PageSkeleton type="dashboard" />
     ) : (
@@ -92,16 +84,20 @@ const createOptimizedLazyComponent = (importFn, componentName, useSkeleton = fal
     
     return (
       <Suspense fallback={fallback}>
-        <LazyComponent {...props} ref={ref} />
+        <LazyComponent {...props} />
       </Suspense>
     );
-  });
+  };
+  
+  WrappedComponent.preload = LazyComponent.preload;
+  return WrappedComponent;
 };
 
 // Safe lazy load all major pages
 export const LazyLanding = createSafeLazyComponent(() => import('../pages/Landing'), 'Landing');
 export const LazySignin = createSafeLazyComponent(() => import('../pages/Signin'), 'Signin');
 export const LazySignup = createSafeLazyComponent(() => import('../pages/Signup'), 'Signup');
+export const LazyResetPassword = createSafeLazyComponent(() => import('../pages/ResetPassword'), 'ResetPassword');
 export const LazyDashboardHome = createOptimizedLazyComponent(() => import('../pages/DashboardHome'), 'DashboardHome', true);
 export const LazySendMoney = createSafeLazyComponent(() => import('../pages/SendMoney'), 'SendMoney');
 export const LazySendMoneyPage = createOptimizedLazyComponent(() => import('../pages/SendMoneyPage'), 'SendMoneyPage');
@@ -115,19 +111,15 @@ export const LazyKPIReports = createSafeLazyComponent(() => import('../pages/KPI
 export const LazyAdminDashboard = createOptimizedLazyComponent(() => import('../pages/admin/AdminDashboard'), 'AdminDashboard', true);
 export const LazyAdminLogs = createOptimizedLazyComponent(() => import('../pages/AdminLogs'), 'AdminLogs');
 export const LazyAdminDatabase = createOptimizedLazyComponent(() => import('../pages/AdminDatabase'), 'AdminDatabase');
-export const LazyTradeJournal = createSafeLazyComponent(() => import('../pages/TradeJournalFixed'), 'TradeJournalFixed');
-export const LazyTradeAnalytics = createOptimizedLazyComponent(() => import('../pages/TradeAnalytics'), 'TradeAnalytics', true);
 export const LazyUpgradePage = createSafeLazyComponent(() => import('../pages/UpgradePage'), 'UpgradePage');
 export const LazySettings = createOptimizedLazyComponent(() => import('../pages/Settings'), 'Settings');
 export const LazyLogViewer = createSafeLazyComponent(() => import('../pages/LogViewer'), 'LogViewer');
+export const LazyMoneyRequests = createOptimizedLazyComponent(() => import('../pages/MoneyRequests'), 'MoneyRequests');
 export const LazyNotFound = createSafeLazyComponent(() => import('../pages/NotFound'), 'NotFound');
 
-// Safe lazy load heavy components
-export const LazyAnalyticsDashboard = createSafeLazyComponent(() => import('./AnalyticsDashboard'), 'AnalyticsDashboard');
+// Safe lazy load heavy components (PDF reports - used in Analytics and Audit pages)
 export const LazyAnalyticsPDFReport = createSafeLazyComponent(() => import('./AnalyticsPDFReport'), 'AnalyticsPDFReport');
 export const LazyAuditTrailPDFReport = createSafeLazyComponent(() => import('./AuditTrailPDFReport'), 'AuditTrailPDFReport');
-export const LazyMarketDataWidget = createSafeLazyComponent(() => import('./MarketDataWidget'), 'MarketDataWidget');
-export const LazyAdminAIChat = createSafeLazyComponent(() => import('./AdminAIChat'), 'AdminAIChat');
 
 // Skeleton components (keeping the existing ones)
 export const DashboardSkeleton = () => (
@@ -220,20 +212,6 @@ export const preloadCriticalComponents = () => {
   console.log('Component preloading disabled to prevent errors');
 };
 
-// Progressive loader component
-export const ProgressiveLoader = ({ children, fallback, delay = 0 }) => {
-  const [showContent, setShowContent] = React.useState(delay === 0);
-
-  React.useEffect(() => {
-    if (delay > 0) {
-      const timer = setTimeout(() => setShowContent(true), delay);
-      return () => clearTimeout(timer);
-    }
-  }, [delay]);
-
-  return showContent ? children : fallback;
-};
-
 export default {
   LazyLanding,
   LazySignin,
@@ -249,11 +227,9 @@ export default {
   LazyAbout,
   LazyKPIReports,
   LazyAdminDashboard,
-  LazyTradeJournal,
   LazySettings,
   LazyNotFound,
   DashboardSkeleton,
   FormSkeleton,
-  AnalyticsSkeleton,
-  ProgressiveLoader
+  AnalyticsSkeleton
 };

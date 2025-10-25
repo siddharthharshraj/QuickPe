@@ -104,8 +104,6 @@ export const Header = () => {
         { name: 'Send Money', href: '/send-money', icon: UserCircleIcon, authRequired: true, feature: 'canSendMoney' },
         { name: 'Transaction History', href: '/transaction-history', icon: ChartBarIcon, authRequired: true },
         { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, authRequired: true, feature: 'canViewAnalytics' },
-        { name: 'Trade Journal', href: '/trade-journal', icon: DocumentTextIcon, authRequired: true },
-        { name: 'Trade Analytics', href: '/trade-analytics', icon: ChartBarIcon, authRequired: true, feature: 'canUseTradeAnalytics' },
         { name: 'AI Assistant', href: '/ai-assistant', icon: Cog6ToothIcon, authRequired: true },
         { name: 'Upgrade', href: '/upgrade', icon: CreditCardIcon, authRequired: true, trialOnly: true },
     ];

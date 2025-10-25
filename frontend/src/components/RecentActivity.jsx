@@ -104,11 +104,14 @@ export const RecentActivity = ({ onTransactionUpdate }) => {
         // Listen for custom events that might be triggered after transactions
         window.addEventListener('transactionUpdate', handleTransactionUpdate);
         
-        // Set up polling as backup for real-time updates
+        // Removed aggressive polling - rely on WebSocket for real-time updates
+        // Only poll if WebSocket is disconnected (every 30 seconds as fallback)
         const pollInterval = setInterval(() => {
-            console.log('Polling for transaction updates...');
-            fetchRecentTransactions();
-        }, 5000); // Poll every 5 seconds
+            if (!window.socketConnected) {
+                console.log('WebSocket disconnected - polling for updates...');
+                fetchRecentTransactions();
+            }
+        }, 30000); // Poll every 30 seconds only if needed
         
         return () => {
             window.removeEventListener('transactionUpdate', handleTransactionUpdate);

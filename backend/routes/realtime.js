@@ -1,7 +1,7 @@
-import express from 'express';
-import { authMiddleware } from '../middleware/index.js';
-import { Transaction } from '../models/Transaction.js';
-import { User as UserModel } from '../models/User.js';
+const express = require('express').default || require('express');;
+const { authMiddleware } = require('../middleware/index');;
+const { Transaction } = require('../models/Transaction');;
+const { User as UserModel } = require('../models/User');;
 
 const router = express.Router();
 
@@ -241,4 +241,4 @@ router.get('/analytics', authMiddleware, async (req, res) => {
     }
 });
 
-export default router;
+module.exports = router;

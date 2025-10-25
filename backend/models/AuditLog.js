@@ -18,6 +18,7 @@ const auditLogSchema = new mongoose.Schema({
             'transaction_updated',
             'money_sent',
             'money_received',
+            'money_requested',
             'balance_updated',
             'quickpe_id_assigned',
             'email_updated',

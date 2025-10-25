@@ -34,9 +34,10 @@ const useAnalyticsSync = (refreshCallback) => {
         }
     }, [socket, handleTransactionUpdate]);
 
-    // Polling fallback - refresh every 15 seconds if no socket updates
+    // Polling disabled - rely on WebSocket only
     useEffect(() => {
-        const interval = setInterval(() => {
+        // Disabled aggressive polling - WebSocket handles all updates
+        /* const interval = setInterval(() => {
             const timeSinceLastUpdate = Date.now() - lastUpdate;
             // Only refresh if no recent socket updates (15+ seconds)
             if (timeSinceLastUpdate >= 15000 && refreshCallback) {
@@ -46,7 +47,7 @@ const useAnalyticsSync = (refreshCallback) => {
             }
         }, 15000);
 
-        return () => clearInterval(interval);
+        return () => clearInterval(interval); */
     }, [lastUpdate, refreshCallback]);
 
     return { lastUpdate };

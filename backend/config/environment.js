@@ -86,10 +86,20 @@ class EnvironmentConfig {
                 primary: {
                     uri: primaryUri,
                     options: {
-                        maxPoolSize: 10,
+                        // Connection Pool Configuration for 150+ concurrent users
+                        maxPoolSize: 50,              // Maximum connections in pool
+                        minPoolSize: 10,              // Minimum connections to maintain
+                        maxIdleTimeMS: 30000,         // Close idle connections after 30s
+                        waitQueueTimeoutMS: 10000,    // Wait 10s for available connection
                         serverSelectionTimeoutMS: 5000,
                         socketTimeoutMS: 45000,
-                        family: 4
+                        connectTimeoutMS: 10000,      // Connection timeout
+                        family: 4,
+                        // Performance optimizations
+                        retryWrites: true,            // Retry failed writes
+                        retryReads: true,             // Retry failed reads
+                        compressors: ['zlib'],        // Enable compression
+                        zlibCompressionLevel: 6       // Compression level (0-9)
                     }
                 },
                 secondary: secondaryUri ? {
@@ -132,14 +142,24 @@ class EnvironmentConfig {
                 primary: {
                     uri: primaryUri,
                     options: {
-                        maxPoolSize: 50,
+                        // Production-grade connection pool for 150+ users
+                        maxPoolSize: 100,             // Higher for production load
+                        minPoolSize: 20,              // Keep 20 connections warm
+                        maxIdleTimeMS: 60000,         // 60s idle timeout
+                        waitQueueTimeoutMS: 15000,    // 15s wait for connection
                         serverSelectionTimeoutMS: 15000,
                         socketTimeoutMS: 45000,
+                        connectTimeoutMS: 15000,
                         family: 4,
                         retryWrites: true,
-                        w: 'majority',
+                        retryReads: true,
+                        w: 'majority',                // Write concern for data safety
                         readPreference: 'primaryPreferred',
-                        compressors: ['zlib']
+                        compressors: ['zlib'],
+                        zlibCompressionLevel: 6,
+                        // Additional production optimizations
+                        heartbeatFrequencyMS: 10000,  // Check server health every 10s
+                        maxConnecting: 10             // Max simultaneous connections
                     }
                 },
                 secondary: secondaryUri ? {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
-import { Balance } from '../components/Balance';
+import { BalanceEnhanced as Balance } from '../components/BalanceEnhanced';
 import { RecentActivity } from '../components/RecentActivity';
 import { LogoLoader } from '../components/LogoLoader';
 import AuditTrailPreview from '../components/AuditTrailPreview';
@@ -26,29 +26,34 @@ import { useMemoryManager } from '../utils/memoryManager';
 import { driver } from 'driver.js';
 import { useSocket } from '../sockets/useSocket';
 import { PageSkeleton } from '../components/PageSkeleton';
+import { useAnalytics } from '../contexts/AnalyticsContext';
 
 export const DashboardHome = () => {
   const navigate = useNavigate();
-  // Temporarily disabled memory manager to fix errors
-  // const componentRef = useRef({});
-  // const memoryManager = useMemoryManager(componentRef.current);
-  const [stats, setStats] = useState({
-    totalBalance: 0,
-    totalTransactions: 0,
-    totalSent: 0,
-    totalReceived: 0,
-    recentTransactions: []
-  });
+  
+  // Use centralized analytics - single source of truth
+  const { 
+    balance, 
+    totalSpent, 
+    totalReceived, 
+    transactionCount, 
+    loading: analyticsLoading,
+    refresh: refreshAnalytics 
+  } = useAnalytics();
+  
+  const [recentTransactions, setRecentTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showLogoLoader, setShowLogoLoader] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState(null);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   // Initialize socket for real-time updates
   const { isConnected } = useSocket(userId, (notification) => {
     console.log('Dashboard received notification:', notification);
-    // Refresh dashboard data when notifications arrive
+    // Refresh analytics and transactions when notifications arrive
+    refreshAnalytics();
     fetchDashboardData();
   });
 
@@ -68,13 +73,7 @@ export const DashboardHome = () => {
 
     const handleBalanceUpdate = (event) => {
       console.log('💰 Balance update event received in Dashboard:', event.detail);
-      const balanceData = event.detail;
-      if (balanceData.userId && balanceData.newBalance !== undefined) {
-        setStats(prevStats => ({
-          ...prevStats,
-          totalBalance: balanceData.newBalance
-        }));
-      }
+      // Analytics context will auto-update via WebSocket
       setTimeout(() => {
         fetchDashboardData();
       }, 100);
@@ -114,19 +113,17 @@ export const DashboardHome = () => {
   // Handle balance updates from Balance component
   const handleBalanceUpdate = async (newBalance) => {
     console.log('Balance updated from Balance component:', newBalance);
-    setStats(prevStats => ({
-      ...prevStats,
-      totalBalance: newBalance
-    }));
+    // Analytics context will auto-update via WebSocket
+    // No need to manually update state
     
-    // Refetch dashboard data to update all stats with real calculations
-    try {
-      await fetchDashboardData();
-    } catch (error) {
-      console.error('Error refetching dashboard data after balance update:', error);
-    }
+    // Emit custom event for other components
+    window.dispatchEvent(new CustomEvent('balance:update', {
+      detail: { 
+        newBalance, 
+        userId: userId
+      }
+    }));
   };
-
 
   useEffect(() => {
     console.log('DashboardHome useEffect triggered');
@@ -176,51 +173,34 @@ export const DashboardHome = () => {
     }
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     console.log('fetchDashboardData called');
     try {
-      // Fetch balance and analytics data for accurate stats
-      const [balanceRes, analyticsRes, transactionsRes] = await Promise.all([
-        apiClient.get('/account/balance'),
-        apiClient.get('/analytics/overview'),
-        apiClient.get('/account/transactions?limit=5')
-      ]);
-
-      console.log('Dashboard balance fetch:', balanceRes.data);
-      console.log('Dashboard analytics fetch:', analyticsRes.data);
-      
-      const currentBalance = balanceRes.data.balance || 0;
-      const analytics = analyticsRes.data.overview || {};
+      // Only fetch recent transactions - analytics comes from context
+      const transactionsRes = await apiClient.get('/account/transactions?limit=5');
       const transactions = transactionsRes.data.transactions || [];
       
-      const newStats = {
-        totalBalance: analytics.currentBalance || currentBalance,
-        totalTransactions: analytics.transactionCount || transactions.length,
-        totalSent: analytics.totalSpending || 0,
-        totalReceived: analytics.totalIncome || 0,
-        recentTransactions: transactions
-      };
+      setRecentTransactions(transactions);
+      console.log('Updated transactions:', transactions.length);
       
-      setStats(newStats);
-      console.log('Updated stats from analytics:', newStats);
+      // Fetch pending money requests count
+      try {
+        const requestsRes = await apiClient.get('/money-requests/received?status=pending');
+        if (requestsRes.data.success) {
+          setPendingRequestsCount(requestsRes.data.data.requests.length);
+        }
+      } catch (reqError) {
+        console.error('Error fetching money requests:', reqError);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // Set default values on error
-      setStats({
-        totalBalance: 0,
-        totalTransactions: 0,
-        totalSent: 0,
-        totalReceived: 0,
-        recentTransactions: []
-      });
+      setRecentTransactions([]);
     } finally {
-      // Immediately stop loading
       console.log('Setting loading to false');
       setLoading(false);
       setShowSkeleton(false);
     }
-  };
-
+  }, []);
 
   const startDashboardTour = () => {
     const driverObj = driver({
@@ -278,14 +258,22 @@ export const DashboardHome = () => {
     },
     {
       id: 'quick-action-2',
-      title: 'Request Money',
-      description: 'Request payment from others',
-      icon: CurrencyRupeeIcon,
-      path: '/request-money',
+      title: 'Money Requests',
+      description: 'View & manage requests',
+      icon: BanknotesIcon,
+      path: '/money-requests',
       color: 'from-emerald-500 to-teal-600'
     },
     {
       id: 'quick-action-3',
+      title: 'Request Money',
+      description: 'Request payment from others',
+      icon: CurrencyRupeeIcon,
+      path: '/request-money',
+      color: 'from-amber-500 to-orange-600'
+    },
+    {
+      id: 'quick-action-4',
       title: 'View History',
       description: 'See all transactions',
       icon: ClockIcon,
@@ -293,19 +281,19 @@ export const DashboardHome = () => {
       color: 'from-purple-500 to-pink-600'
     },
     {
-      id: 'quick-action-4',
+      id: 'quick-action-5',
       title: 'Analytics',
       description: 'View spending insights',
       icon: ChartBarIcon,
       path: '/analytics',
-      color: 'from-orange-500 to-red-600'
+      color: 'from-rose-500 to-red-600'
     }
   ];
 
   const statCards = [
     {
       title: 'Total Balance',
-      value: `₹${stats.totalBalance.toLocaleString()}`,
+      value: `₹${balance.toLocaleString()}`,
       change: '+12.5%',
       changeType: 'positive',
       icon: CurrencyRupeeIcon,
@@ -313,7 +301,7 @@ export const DashboardHome = () => {
     },
     {
       title: 'Total Sent',
-      value: `₹${stats.totalSent.toLocaleString()}`,
+      value: `₹${totalSpent.toLocaleString()}`,
       change: '+8.2%',
       changeType: 'positive',
       icon: ArrowTrendingUpIcon,
@@ -321,7 +309,7 @@ export const DashboardHome = () => {
     },
     {
       title: 'Total Received',
-      value: `₹${stats.totalReceived.toLocaleString()}`,
+      value: `₹${totalReceived.toLocaleString()}`,
       change: '+15.3%',
       changeType: 'positive',
       icon: ArrowTrendingDownIcon,
@@ -329,7 +317,7 @@ export const DashboardHome = () => {
     },
     {
       title: 'Transactions',
-      value: stats.totalTransactions.toString(),
+      value: transactionCount.toString(),
       change: '+23.1%',
       changeType: 'positive',
       icon: ChartBarIcon,
@@ -434,8 +422,14 @@ export const DashboardHome = () => {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => navigate(action.path)}
-                      className="group bg-gradient-to-r from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 rounded-xl p-4 text-left transition-all duration-200 border border-slate-200 hover:border-slate-300"
+                      className="group bg-gradient-to-r from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 rounded-xl p-4 text-left transition-all duration-200 border border-slate-200 hover:border-slate-300 relative"
                     >
+                      {/* Notification Badge for Money Requests */}
+                      {action.path === '/money-requests' && pendingRequestsCount > 0 && (
+                        <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg animate-pulse">
+                          {pendingRequestsCount}
+                        </div>
+                      )}
                       <div className="flex items-center space-x-3 mb-3">
                         <div className={`w-10 h-10 bg-gradient-to-r ${action.color} rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow`}>
                           <action.icon className="h-5 w-5 text-white" />
@@ -472,8 +466,8 @@ export const DashboardHome = () => {
               </div>
               
               <div className="space-y-3">
-                {stats.recentTransactions.length > 0 ? (
-                  stats.recentTransactions.slice(0, 3).map((transaction, index) => (
+                {recentTransactions.length > 0 ? (
+                  recentTransactions.slice(0, 3).map((transaction, index) => (
                     <div key={transaction._id || index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${

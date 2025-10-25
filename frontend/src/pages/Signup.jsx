@@ -53,10 +53,30 @@ export const Signup = () => {
                 password
             });
             
+            console.log('✅ Signup successful:', response.data);
+            
             // Store both token and user data for proper session management
-            localStorage.setItem("token", response.data.token);
-            localStorage.setItem("user", JSON.stringify(response.data.user));
-            navigate("/dashboard");
+            const userData = response.data.data.user;
+            const token = response.data.data.token;
+            
+            localStorage.setItem("token", token);
+            localStorage.setItem("userId", userData.id);
+            localStorage.setItem("user", JSON.stringify({
+                id: userData.id,
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                email: userData.email,
+                quickpeId: userData.quickpeId,
+                balance: userData.balance,
+                role: userData.role,
+                isAdmin: userData.isAdmin || false,
+                createdAt: new Date().toISOString()
+            }));
+            
+            console.log('✅ Stored user data and redirecting to dashboard');
+            
+            // Force page reload to trigger AuthContext re-check
+            window.location.href = '/dashboard';
         } catch (err) {
             setError(err.response?.data?.message || "Something went wrong. Please try again.");
         } finally {

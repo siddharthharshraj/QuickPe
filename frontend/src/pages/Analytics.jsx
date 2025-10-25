@@ -19,16 +19,18 @@ import { Footer } from '../components/Footer';
 import { AnalyticsSkeleton } from '../components/LazyComponents';
 import { MonthlyTrendsChart } from '../components/AnalyticsChart';
 import useAnalyticsSync from '../hooks/useAnalyticsSync';
-import apiClient from '../services/api/client';
-import { memoryManager } from '../utils/memoryManager';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import apiClient from '../services/api/client.js';
+import memoryManager from '../utils/memoryManager';
+import { toast } from 'react-hot-toast';
 
 export const Analytics = () => {
+  
   // State management with memory optimization
   const [state, setState] = useState({
     loading: true,
     showSkeleton: true,
-    timeRange: 'month'
+    timeRange: 'month',
+    error: null
   });
 
   // Data stores using memory-efficient structures
@@ -76,6 +78,8 @@ export const Analytics = () => {
         setState(prev => ({ ...prev, showSkeleton: false }));
       }, 2000);
       
+      console.log('📊 Fetching analytics data...');
+      
       // Fetch all data in parallel
       const [userResponse, ...responses] = await Promise.all([
         apiClient.get('/user/profile'),
@@ -85,6 +89,8 @@ export const Analytics = () => {
         apiClient.get('/analytics-comprehensive/recurring'),
         apiClient.get(`/analytics-comprehensive/insights?timeRange=${state.timeRange}`)
       ]);
+      
+      console.log('✅ Analytics data fetched successfully');
 
       // Process responses
       const [summaryRes, categoriesRes, trendsRes, recurringRes, insightsRes] = responses;
@@ -115,53 +121,73 @@ export const Analytics = () => {
       
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
-      setTimeout(() => setState(prev => ({ ...prev, showSkeleton: false })), 2000);
-    } finally {
-      setState(prev => ({ ...prev, loading: false }));
+      toast.error('Failed to load analytics data');
+      setState(prev => ({ 
+        ...prev, 
+        loading: false, 
+        showSkeleton: false,
+        error: error.message || 'Failed to load analytics'
+      }));
     }
+  }, [state.timeRange]);
+
+  // Fetch data on mount and when timeRange changes
+  useEffect(() => {
+    fetchAllAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.timeRange]);
 
   // Real-time sync with memory optimization
   useAnalyticsSync(fetchAllAnalytics);
 
-  // PDF Export with memory-efficient implementation
+  // Export analytics data
   const exportPDF = useCallback(async () => {
     try {
-      const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage([600, 800]);
+      // Use backend API for PDF export
+      const response = await apiClient.get('/analytics/export?format=pdf');
       
-      // Add content to PDF
-      const { width, height } = page.getSize();
-      const fontSize = 12;
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      
-      page.drawText('QuickPe Analytics Report', {
-        x: 50,
-        y: height - 50,
-        size: 20,
-        font,
-        color: rgb(0, 0.5, 0.3) // QuickPe emerald
-      });
-
-      // Add more content...
-      
-      const pdfBytes = await pdfDoc.save();
-      
-      // Download PDF
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `QuickPe-Analytics-${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      if (response.data && response.data.success) {
+        toast.success('Analytics exported successfully!');
+        
+        // If backend returns download URL or data
+        if (response.data.downloadUrl) {
+          window.open(response.data.downloadUrl, '_blank');
+        }
+      } else {
+        toast.info('PDF export available via backend API');
+      }
       
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('Error exporting analytics:', error);
+      toast.error('Failed to export analytics');
     }
-  }, [analyticsData, userData]);
+  }, []);
+
+  // Show error state if there's an error
+  if (state.error && !state.loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <Header />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center max-w-md">
+            <div className="text-red-500 text-5xl mb-4">⚠️</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Failed to Load Analytics</h2>
+            <p className="text-gray-600 mb-6">{state.error}</p>
+            <button
+              onClick={() => {
+                setState(prev => ({ ...prev, error: null, loading: true }));
+                fetchAllAnalytics();
+              }}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   // Show skeleton while loading
   if (state.loading || state.showSkeleton) {
@@ -231,8 +257,141 @@ export const Analytics = () => {
             </div>
           </motion.div>
 
-          {/* Rest of the optimized components... */}
-          {/* [Previous component implementations remain unchanged but with memory optimizations] */}
+          {/* Analytics Content */}
+          {analyticsData && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-white rounded-xl p-6 shadow-sm border border-slate-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-600">Current Balance</p>
+                      <p className="text-2xl font-bold text-slate-900 mt-1">
+                        ₹{userData?.balance?.toLocaleString() || 0}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                      <CurrencyRupeeIcon className="h-6 w-6 text-emerald-600" />
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-white rounded-xl p-6 shadow-sm border border-slate-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-600">Total Spending</p>
+                      <p className="text-2xl font-bold text-red-600 mt-1">
+                        ₹{analyticsData.totalSpending?.toLocaleString() || 0}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                      <ArrowTrendingDownIcon className="h-6 w-6 text-red-600" />
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white rounded-xl p-6 shadow-sm border border-slate-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-600">Total Income</p>
+                      <p className="text-2xl font-bold text-emerald-600 mt-1">
+                        ₹{analyticsData.totalIncome?.toLocaleString() || 0}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                      <ArrowTrendingUpIcon className="h-6 w-6 text-emerald-600" />
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="bg-white rounded-xl p-6 shadow-sm border border-slate-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-600">Net Flow</p>
+                      <p className={`text-2xl font-bold mt-1 ${(analyticsData.netFlow || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        ₹{analyticsData.netFlow?.toLocaleString() || 0}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <ScaleIcon className="h-6 w-6 text-purple-600" />
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Charts Section */}
+              {trendsData && trendsData.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-white rounded-xl p-6 shadow-sm border border-slate-200"
+                >
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Monthly Trends</h3>
+                  <MonthlyTrendsChart data={trendsData} />
+                </motion.div>
+              )}
+
+              {/* Insights */}
+              {insights && insights.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="bg-white rounded-xl p-6 shadow-sm border border-slate-200"
+                >
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Financial Insights</h3>
+                  <div className="space-y-3">
+                    {insights.map((insight, index) => (
+                      <div key={index} className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
+                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <TrophyIcon className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{insight.title}</p>
+                          <p className="text-sm text-slate-600 mt-1">{insight.message}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          )}
+
+          {/* No Data State */}
+          {!analyticsData && !state.loading && (
+            <div className="text-center py-12">
+              <ChartBarIcon className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-600">No analytics data available</p>
+              <button
+                onClick={fetchAllAnalytics}
+                className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Load Analytics
+              </button>
+            </div>
+          )}
         </div>
       </div>
       

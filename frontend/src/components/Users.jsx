@@ -32,26 +32,27 @@ export const Users = () => {
         return () => clearTimeout(timerId);
     }, [filter]);
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (retryCount = 0) => {
         setUsersLoading(true);
         setUsersError("");
         
         try {
             const token = localStorage.getItem("token");
             if (!token) {
-                throw new Error("No authentication token found");
+                setUsersError("Please sign in to view users");
+                setUsersLoading(false);
+                return;
             }
 
             console.log("Fetching users with filter:", filter);
-            console.log("Making API call to /user/bulk");
+            console.log("API Base URL:", apiClient.defaults.baseURL);
+            console.log("Full URL:", `${apiClient.defaults.baseURL}/user/bulk`);
             
             const response = await apiClient.get(`/user/bulk`, {
                 params: { filter }
             });
             
             console.log("Users API response:", response);
-            console.log("Users data:", response.data);
-            console.log("Users array:", response.data.users);
             
             // Handle different response structures
             let usersArray = [];
@@ -63,21 +64,38 @@ export const Users = () => {
                 usersArray = response;
             }
             
-            console.log("Final users array:", usersArray);
-            console.log("Users array length:", usersArray.length);
+            console.log("Loaded users:", usersArray.length);
             setUsers(usersArray);
             
         } catch (error) {
-            const errorMessage = error.response?.data?.message || "Failed to load users";
-            setUsersError(errorMessage);
             console.error("Users fetch error:", error);
-            console.error("Error details:", error.response);
+            console.error("Error response:", error.response);
+            console.error("Error message:", error.message);
             
-            // If unauthorized, redirect to login
-            if (error.response?.status === 401) {
-                localStorage.removeItem("token");
-                window.location.href = "/signin";
+            // Retry logic for network errors
+            if (retryCount < 2 && (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK')) {
+                console.log(`Retrying... Attempt ${retryCount + 1}`);
+                setTimeout(() => fetchUsers(retryCount + 1), 1000);
+                return;
             }
+            
+            // Set user-friendly error message
+            let errorMessage = "Failed to load users";
+            if (error.response?.status === 401) {
+                errorMessage = "Session expired. Please sign in again.";
+                setTimeout(() => {
+                    localStorage.removeItem("token");
+                    window.location.href = "/signin";
+                }, 2000);
+            } else if (error.response?.status === 500) {
+                errorMessage = "Server error. Please try again later.";
+            } else if (error.code === 'ERR_NETWORK') {
+                errorMessage = "Network error. Please check your connection.";
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            
+            setUsersError(errorMessage);
         } finally {
             setUsersLoading(false);
         }

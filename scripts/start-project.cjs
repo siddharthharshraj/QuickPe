@@ -60,7 +60,7 @@ async function setupProject() {
     try {
         // Run connection verification first
         console.log('\n🔍 Running pre-startup verification...');
-        await runCommand('node', ['scripts/verify-connections.js'], path.join(__dirname, '..'), 'Verifying connections');
+        await runCommand('node', ['scripts/verify-connections.cjs'], process.cwd(), 'Verifying connections');
         
         // Install backend dependencies
         await runCommand('npm', ['install'], path.join(__dirname, '..', 'backend'), 'Installing backend dependencies');

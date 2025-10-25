@@ -25,12 +25,20 @@ export const UnifiedTransactionHistory = () => {
     refreshing: false
   });
 
-  // Filter state as single object
+  // Comprehensive filter state
   const [filters, setFilters] = useState({
     searchTerm: '',
     dateFilter: 'all',
-    typeFilter: 'all'
+    typeFilter: 'all',
+    categoryFilter: 'all',
+    startDate: '',
+    endDate: '',
+    minAmount: '',
+    maxAmount: ''
   });
+
+  // Show advanced filters
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // UI state
   const [uiState, setUiState] = useState({
@@ -38,7 +46,20 @@ export const UnifiedTransactionHistory = () => {
     currentPage: 1
   });
 
-  const itemsPerPage = 6;
+  // Pagination state from server
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+    maxPages: 6,
+    maxTotal: 60
+  });
+
+  // PAGINATION CONSTRAINTS as per requirements
+  const ITEMS_PER_PAGE = 10;        // Fixed: 10 transactions per page
+  const MAX_TOTAL_ITEMS = 60;       // Maximum: 60 transactions total
+  const MAX_PAGES = 6;              // Maximum: 6 pages
   const componentRef = useRef(null);
 
   // Memoized socket connection (only create once)
@@ -59,9 +80,9 @@ export const UnifiedTransactionHistory = () => {
     );
 
     // Calculate pagination
-    const totalPages = Math.ceil(filtered.length / itemsPerPage);
-    const startIndex = (uiState.currentPage - 1) * itemsPerPage;
-    const paginatedTransactions = filtered.slice(startIndex, startIndex + itemsPerPage);
+    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    const startIndex = (uiState.currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedTransactions = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     return {
       filteredTransactions: filtered,

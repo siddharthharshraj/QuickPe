@@ -121,6 +121,20 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    // Soft delete fields
+    deletedAt: {
+        type: Date,
+        default: null
+    },
+    deletedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
+    deleteReason: {
+        type: String,
+        default: null
+    },
     subscription: {
         status: { 
             type: String, 
@@ -246,9 +260,41 @@ userSchema.methods.generateQuickPeId = async function() {
     return quickpeId;
 };
 
+// Soft delete method
+userSchema.methods.softDelete = function(deletedBy, reason) {
+    this.deletedAt = new Date();
+    this.deletedBy = deletedBy;
+    this.deleteReason = reason;
+    this.isActive = false;
+    return this.save();
+};
+
+// Restore soft deleted user
+userSchema.methods.restore = function() {
+    this.deletedAt = null;
+    this.deletedBy = null;
+    this.deleteReason = null;
+    this.isActive = true;
+    return this.save();
+};
+
+// Query middleware to exclude soft-deleted users by default
+userSchema.pre(/^find/, function(next) {
+    // Only apply if not explicitly including deleted users
+    if (!this.getOptions().includeDeleted) {
+        this.where({ deletedAt: null });
+    }
+    next();
+});
+
 // Virtual for full name
 userSchema.virtual('fullName').get(function() {
     return `${this.firstName} ${this.lastName}`;
+});
+
+// Virtual to check if deleted
+userSchema.virtual('isDeleted').get(function() {
+    return this.deletedAt !== null;
 });
 
 // Ensure virtual fields are serialized

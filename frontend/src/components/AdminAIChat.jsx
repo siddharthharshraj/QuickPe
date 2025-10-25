@@ -94,23 +94,6 @@ ${analytics.users?.byRole?.map(role => `• ${role._id || 'Unassigned'}: ${role.
 **Transaction Health:** ${totalTransactions > 100 ? '🟢 Healthy' : '🟡 Growing'}`;
     }
 
-    // Trade Journal queries
-    if (lowerMessage.includes('trade') || lowerMessage.includes('journal') || lowerMessage.includes('investment')) {
-      const totalTrades = analytics.trades?.total || 0;
-      const profitableTrades = analytics.trades?.profitable || 0;
-      const totalPnL = analytics.trades?.totalPnL || 0;
-      const winRate = totalTrades > 0 ? ((profitableTrades / totalTrades) * 100) : 0;
-      
-      return `📈 **Trade Journal Analytics:**
-      
-• **Total Trades:** ${totalTrades}
-• **Profitable Trades:** ${profitableTrades}
-• **Win Rate:** ${winRate.toFixed(1)}%
-• **Total P&L:** ${totalPnL >= 0 ? '+' : ''}₹${totalPnL.toLocaleString()}
-
-**Trading Activity:** ${totalTrades > 50 ? '🔥 Very Active' : totalTrades > 10 ? '📊 Moderate' : '🌱 Just Starting'}`;
-    }
-
     // Feature usage queries
     if (lowerMessage.includes('feature') || lowerMessage.includes('usage') || lowerMessage.includes('popular')) {
       return `🚀 **Feature Usage Analytics:**
@@ -118,11 +101,9 @@ ${analytics.users?.byRole?.map(role => `• ${role._id || 'Unassigned'}: ${role.
 **Most Used Features:**
 • **Transactions:** ${analytics.transactions?.total || 0} total uses
 • **User Dashboard:** ${users.users?.filter(u => u.lastLogin).length || 0} recent logins
-• **Trade Journal:** ${analytics.trades?.total || 0} entries
 • **Analytics:** High engagement
 
 **Feature Adoption:**
-• **Trade Journal:** ${analytics.trades?.total > 0 ? '✅ Active' : '⏳ Pending adoption'}
 • **Real-time Notifications:** ✅ Enabled
 • **Export Features:** ✅ Available
 • **Admin Panel:** ✅ Fully functional`;

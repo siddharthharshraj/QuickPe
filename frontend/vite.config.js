@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+// import { VitePWA } from 'vite-plugin-pwa' // Disabled - was causing refreshes
 import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vitejs.dev/config/
@@ -11,25 +11,6 @@ export default defineConfig({
       fastRefresh: true,
       babel: {
         plugins: []
-      }
-    }),
-    VitePWA({
-      registerType: 'autoUpdate',
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/localhost:5001\/api\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 5 // 5 minutes for API calls
-              }
-            }
-          }
-        ]
       }
     }),
     visualizer({

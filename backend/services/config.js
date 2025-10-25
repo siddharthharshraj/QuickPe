@@ -1,4 +1,8 @@
+class Config {
 //backend/config.js
 module.exports = {
 	JWT_SECRET: process.env.JWT_SECRET || "your-jwt-secret-change-this-in-production"
 }
+}
+
+module.exports = new Config();

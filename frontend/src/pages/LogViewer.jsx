@@ -213,16 +213,11 @@ const LogViewer = () => {
         });
     };
 
-    // Auto-refresh effect
+    // Auto-refresh disabled - manual refresh only
     useEffect(() => {
-        if (autoRefresh) {
-            const interval = setInterval(() => {
-                fetchLogs(false); // Don't show loading for auto-refresh
-            }, 5000);
-            setRefreshInterval(interval);
-            
-            return () => clearInterval(interval);
-        } else if (refreshInterval) {
+        // Auto-refresh functionality disabled to prevent memory issues
+        // Use manual refresh button instead
+        if (refreshInterval) {
             clearInterval(refreshInterval);
             setRefreshInterval(null);
         }

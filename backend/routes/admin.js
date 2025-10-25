@@ -5,10 +5,11 @@ const jwt = require('jsonwebtoken');
 const { adminMiddleware } = require('../middleware/index');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-const TradeJournal = require('../models/TradeJournal');
+// TradeJournal models removed - moved to separate TradeJournal folder
+// const TradeJournal = require('../models/TradeJournal');
 const FeatureFlag = require('../models/FeatureFlag');
 const PaymentAnalytics = require('../models/PaymentAnalytics');
-const TradeAnalytics = require('../models/TradeAnalytics');
+// const TradeAnalytics = require('../models/TradeAnalytics');
 const TrialService = require('../services/TrialService');
 const PaymentService = require('../services/PaymentService');
 const queryOptimization = require('../middleware/queryOptimization');
@@ -636,37 +637,13 @@ router.get('/analytics', adminMiddleware, async (req, res) => {
             }
         ]);
 
-        // Trade journal analytics (if enabled)
-        const tradeStats = await TradeJournal.aggregate([
-            {
-                $facet: {
-                    totalTrades: [{ $count: "count" }],
-                    profitableTrades: [
-                        { $match: { pnl: { $gt: 0 } } },
-                        { $count: "count" }
-                    ],
-                    totalPnL: [
-                        {
-                            $group: {
-                                _id: null,
-                                total: { $sum: '$pnl' }
-                            }
-                        }
-                    ],
-                    topSymbols: [
-                        {
-                            $group: {
-                                _id: '$symbol',
-                                count: { $sum: 1 },
-                                totalPnL: { $sum: '$pnl' }
-                            }
-                        },
-                        { $sort: { count: -1 } },
-                        { $limit: 10 }
-                    ]
-                }
-            }
-        ]);
+        // Trade journal analytics removed - moved to separate TradeJournal folder
+        const tradeStats = [{
+            totalTrades: [{ count: 0 }],
+            profitableTrades: [{ count: 0 }],
+            totalPnL: [{ total: 0 }],
+            topSymbols: []
+        }];
 
         const analytics = {
             users: {
@@ -704,25 +681,11 @@ router.get('/analytics', adminMiddleware, async (req, res) => {
     }
 });
 
-// Get trade analytics for AI assistant
+// Get trade analytics for AI assistant - Disabled (Trade Journal moved to separate folder)
 router.get('/trade-analytics', adminMiddleware, async (req, res) => {
     try {
-        const TradeJournal = require('../models/TradeJournal');
-        
-        const tradeStats = await TradeJournal.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    total: { $sum: 1 },
-                    profitable: { $sum: { $cond: [{ $gt: ['$pnl', 0] }, 1, 0] } },
-                    totalPnL: { $sum: '$pnl' },
-                    totalInvested: { $sum: { $multiply: ['$entryPrice', '$quantity'] } },
-                    avgHoldingPeriod: { $avg: '$holdingPeriod' }
-                }
-            }
-        ]);
-
-        const stats = tradeStats[0] || {
+        // Trade Journal functionality moved to separate folder
+        const stats = {
             total: 0,
             profitable: 0,
             totalPnL: 0,
@@ -732,7 +695,8 @@ router.get('/trade-analytics', adminMiddleware, async (req, res) => {
 
         res.json({
             success: true,
-            trades: stats
+            trades: stats,
+            message: 'Trade Journal feature has been moved to a separate module'
         });
     } catch (error) {
         console.error('Error fetching trade analytics:', error);
@@ -754,14 +718,13 @@ router.get('/analytics/export', adminMiddleware, async (req, res) => {
             .populate('from', 'firstName lastName email')
             .populate('to', 'firstName lastName email')
             .lean();
-        const trades = await TradeJournal.find({})
-            .populate('userId', 'firstName lastName email')
-            .lean();
+        // Trade Journal data removed - moved to separate folder
+        const trades = [];
 
         const exportData = {
             users,
             transactions,
-            trades,
+            trades: [], // Trade Journal moved to separate module
             exportedAt: new Date().toISOString(),
             exportedBy: req.userId
         };

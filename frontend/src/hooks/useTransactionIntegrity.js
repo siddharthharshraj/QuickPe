@@ -278,9 +278,10 @@ export const useTransactionIntegrity = (userId) => {
     useEffect(() => {
         if (!userId || !integrityState.autoCheckEnabled) return;
 
-        integrityCheckRef.current = setInterval(() => {
+        // Disabled automatic integrity checks - manual only
+        /* integrityCheckRef.current = setInterval(() => {
             performIntegrityCheck('automatic');
-        }, integrityState.checkInterval);
+        }, integrityState.checkInterval); */
 
         // Initial check after 10 seconds
         const initialCheckTimeout = setTimeout(() => {

@@ -50,5 +50,6 @@ router.post('/signin', signinValidation, authController.signin);
 router.get('/verify', authController.verify);
 router.post('/logout', authController.logout);
 router.post('/refresh-token', authController.refreshToken);
+router.post('/reset-password', authController.resetPassword);
 
 module.exports = router;

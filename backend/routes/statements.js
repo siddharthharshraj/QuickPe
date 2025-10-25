@@ -1,8 +1,8 @@
-import express from 'express';
-import PDFDocument from 'pdfkit';
-import { authMiddleware } from '../middleware/index.js';
-import { Transaction } from '../models/Transaction.js';
-import { User as UserModel } from '../models/User.js';
+const express = require('express').default || require('express');;
+const PDFDocument = require('pdfkit').default || require('pdfkit');;
+const { authMiddleware } = require('../middleware/index');;
+const { Transaction } = require('../models/Transaction');;
+const { User as UserModel } = require('../models/User');;
 
 const router = express.Router();
 
@@ -255,4 +255,4 @@ router.get('/csv', authMiddleware, async (req, res) => {
     }
 });
 
-export default router;
+module.exports = router;

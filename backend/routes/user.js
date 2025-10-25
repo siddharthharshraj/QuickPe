@@ -209,6 +209,48 @@ router.get("/bulk", authMiddleware, async (req, res) => {
     }
 });
 
+// Search users (alias for /bulk for compatibility)
+router.get("/search", authMiddleware, async (req, res) => {
+    try {
+        const query = req.query.query || req.query.filter || "";
+
+        let filter = { _id: { $ne: req.userId } }; // Exclude current user
+        
+        if (query) {
+            filter.$or = [
+                { firstName: { $regex: query, $options: 'i' } },
+                { lastName: { $regex: query, $options: 'i' } },
+                { username: { $regex: query, $options: 'i' } },
+                { quickpeId: { $regex: query, $options: 'i' } }
+            ];
+        }
+        
+        const users = await User.find(filter, 'username firstName lastName _id quickpeId')
+            .sort({ firstName: 1 })
+            .limit(20);
+        
+        res.json({
+            success: true,
+            users: users.map(user => ({
+                _id: user._id,
+                username: user.username,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                quickpeId: user.quickpeId,
+                fullName: `${user.firstName} ${user.lastName}`
+            }))
+        });
+        
+    } catch (error) {
+        console.error('Error in /search endpoint:', error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to search users",
+            error: error.message
+        });
+    }
+});
+
 // Get user profile
 router.get('/profile', authMiddleware, async (req, res) => {
     try {

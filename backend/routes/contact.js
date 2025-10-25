@@ -1,6 +1,6 @@
-import express from 'express';
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
+const express = require('express').default || require('express');;
+const nodemailer = require('nodemailer').default || require('nodemailer');;
+const dotenv = require('dotenv').default || require('dotenv');;
 
 dotenv.config();
 
@@ -246,4 +246,4 @@ Reply to: ${email}
     }
 });
 
-export default router;
+module.exports = router;

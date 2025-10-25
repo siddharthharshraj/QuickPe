@@ -9,7 +9,7 @@ const notificationSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['TRANSFER_SENT', 'TRANSFER_RECEIVED', 'BALANCE_LOW', 'SECURITY_ALERT', 'SYSTEM_UPDATE', 'MONEY_ADDED'],
+        enum: ['TRANSFER_SENT', 'TRANSFER_RECEIVED', 'BALANCE_LOW', 'SECURITY_ALERT', 'SYSTEM_UPDATE', 'MONEY_ADDED', 'MONEY_REQUEST'],
         required: true
     },
     title: {

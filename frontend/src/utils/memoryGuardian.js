@@ -25,16 +25,13 @@ class MemoryGuardian {
   init() {
     if (this.isInitialized) return;
 
-    console.log('🛡️ Memory Guardian activated - Zero memory leaks guaranteed');
+    // Memory Guardian disabled - using React's built-in cleanup
+    console.log('🛡️ Memory Guardian: Disabled (using React cleanup patterns)');
 
-    // Start guardian monitoring
-    this.startGuardian();
-
-    // Setup global error handlers
-    this.setupErrorHandlers();
-
-    // Setup performance observer
-    this.setupPerformanceObserver();
+    // Don't start aggressive monitoring
+    // this.startGuardian();
+    // this.setupErrorHandlers();
+    // this.setupPerformanceObserver();
 
     this.isInitialized = true;
   }

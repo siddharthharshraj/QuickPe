@@ -1,12 +1,12 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const UserRepository = require('../repositories/UserRepository');
-// const AuditRepository = require('../repositories/AuditRepository');
+const AuditRepository = require('../repositories/AuditRepository');
 
 class AuthService {
     constructor() {
         this.userRepository = new UserRepository();
-        // this.auditRepository = new AuditRepository();
+        this.auditRepository = new AuditRepository();
     }
 
     /**
@@ -28,7 +28,7 @@ class AuthService {
         // Generate QuickPe ID
         const quickpeId = this.generateQuickPeId();
 
-        // Create user
+        // Create user with initial balance of ₹10,000
         const newUser = await this.userRepository.create({
             firstName,
             lastName,
@@ -36,28 +36,29 @@ class AuthService {
             password: hashedPassword,
             phone,
             quickpeId,
-            balance: 0,
+            balance: 10000, // Initial balance as per requirements
             isActive: true,
             role: 'user'
         });
 
-        // Log audit trail (temporarily disabled)
-        // try {
-        //     await this.auditRepository.create({
-        //         actor_user_id: newUser._id.toString(),
-        //         action_type: 'user_created',
-        //         resource_type: 'user',
-        //         resource_id: newUser._id.toString(),
-        //         details: {
-        //             email,
-        //             quickpeId,
-        //             timestamp: new Date()
-        //         }
-        //     });
-        // } catch (auditError) {
-        //     console.error('Audit log creation failed, but continuing with signup:', auditError.message);
-        //     // Continue with signup even if audit fails
-        // }
+        // Log audit trail for signup
+        try {
+            await this.auditRepository.create({
+                userId: newUser._id.toString(),
+                action: 'SIGNUP',
+                details: {
+                    email,
+                    quickpeId,
+                    initialBalance: 10000,
+                    timestamp: new Date()
+                },
+                ipAddress: null, // Can be passed from controller
+                userAgent: null  // Can be passed from controller
+            });
+        } catch (auditError) {
+            console.error('Audit log creation failed, but continuing with signup:', auditError.message);
+            // Continue with signup even if audit fails
+        }
 
         // Generate JWT token
         const token = await this.generateToken(newUser._id);
@@ -100,24 +101,22 @@ class AuthService {
         // Update last login
         await this.userRepository.updateLastLogin(user._id);
 
-        // Log audit trail (temporarily disabled)
-        // try {
-        //     const auditData = {
-        //         actor_user_id: user._id.toString(),
-        //         action_type: 'login',
-        //         resource_type: 'user',
-        //         resource_id: user._id.toString(),
-        //         details: {
-        //             email,
-        //             timestamp: new Date()
-        //         }
-        //     };
-        //     console.log('Creating audit log with data:', auditData);
-        //     await this.auditRepository.create(auditData);
-        // } catch (auditError) {
-        //     console.error('Audit log creation failed, but continuing with signin:', auditError.message);
-        //     // Continue with signin even if audit fails
-        // }
+        // Log audit trail for login
+        try {
+            await this.auditRepository.create({
+                userId: user._id.toString(),
+                action: 'LOGIN',
+                details: {
+                    email,
+                    timestamp: new Date()
+                },
+                ipAddress: null, // Can be passed from controller
+                userAgent: null  // Can be passed from controller
+            });
+        } catch (auditError) {
+            console.error('Audit log creation failed, but continuing with signin:', auditError.message);
+            // Continue with signin even if audit fails
+        }
 
         // Generate JWT token
         const token = await this.generateToken(user._id);
@@ -220,11 +219,37 @@ class AuthService {
 
     /**
      * Generate unique QuickPe ID
+     * Format: QP{YEAR}{4-DIGIT-UNIQUE-NUMBER}
+     * Example: QP20251234
      */
     generateQuickPeId() {
-        const prefix = 'QPK-';
-        const randomString = Math.random().toString(36).substring(2, 10).toUpperCase();
-        return prefix + randomString;
+        const year = new Date().getFullYear();
+        // Generate 4 random digits (1000-9999)
+        const randomDigits = Math.floor(1000 + Math.random() * 9000);
+        return `QP${year}${randomDigits}`;
+    }
+
+    /**
+     * Reset password (simple method for testing)
+     */
+    async resetPassword(email, newPassword) {
+        // Find user by email
+        const user = await this.userRepository.findByEmail(email);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // Hash new password
+        const saltRounds = 12;
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // Update user password
+        await this.userRepository.updatePassword(user._id, hashedPassword);
+
+        return {
+            message: 'Password reset successfully',
+            email: user.email
+        };
     }
 
     /**

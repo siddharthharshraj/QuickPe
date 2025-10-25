@@ -6,6 +6,7 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { Footer } from '../components/Footer';
 import { PageSkeleton } from '../components/PageSkeleton';
 import { SuccessModal } from '../components/SuccessModal';
+import { SendingAnimation } from '../components/SendingAnimation';
 
 export const SendMoney = () => {
     const [searchParams] = useSearchParams();

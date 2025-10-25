@@ -26,13 +26,6 @@ const DataSyncStatus = () => {
     fetchSyncStatus();
     fetchConnectionInfo();
     fetchCollections();
-    
-    // Set up real-time updates
-    const interval = setInterval(() => {
-      fetchSyncStatus();
-    }, 10000); // Update every 10 seconds
-    
-    return () => clearInterval(interval);
   }, []);
 
   const fetchSyncStatus = async () => {

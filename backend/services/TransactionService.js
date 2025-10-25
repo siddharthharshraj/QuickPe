@@ -200,7 +200,7 @@ class TransactionService {
             // Send notifications (outside transaction to avoid rollback issues)
             await this.notificationService.createNotification({
                 userId: senderId,
-                type: 'money_sent',
+                type: 'TRANSFER_SENT',
                 title: 'Money Sent',
                 message: `You sent ₹${amount} to ${recipient.firstName} ${recipient.lastName}`,
                 data: {
@@ -213,7 +213,7 @@ class TransactionService {
 
             await this.notificationService.createNotification({
                 userId: recipientId,
-                type: 'money_received',
+                type: 'TRANSFER_RECEIVED',
                 title: 'Money Received',
                 message: `You received ₹${amount} from ${sender.firstName} ${sender.lastName}`,
                 data: {
@@ -295,7 +295,7 @@ class TransactionService {
             // Send notification
             await this.notificationService.createNotification({
                 userId,
-                type: 'money_added',
+                type: 'MONEY_ADDED',
                 title: 'Money Added',
                 message: `₹${amount} has been added to your wallet`,
                 data: {

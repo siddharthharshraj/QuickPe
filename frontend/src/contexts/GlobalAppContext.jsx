@@ -84,11 +84,11 @@ export function AppProvider({ children }) {
       }
     };
 
-    // Check memory every 60 seconds (not every 10 like before)
-    const interval = setInterval(checkMemory, 60000);
-    checkMemory(); // Initial check
+    // Memory checking disabled - was causing page refreshes
+    // const interval = setInterval(checkMemory, 60000);
+    // checkMemory(); // Initial check
 
-    return () => clearInterval(interval);
+    // return () => clearInterval(interval);
   }, []);
 
   // Actions

@@ -465,4 +465,102 @@ router.get("/summary", authMiddleware, async (req, res) => {
     });
   }
 });
+
+// GET /api/v1/analytics/export - Export analytics data
+router.get("/export", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const format = req.query.format || 'json'; // json, csv, pdf
+    
+    // Get analytics data
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    
+    const Transaction = require('../models/Transaction');
+    const User = require('../models/User');
+    
+    const [user, transactions] = await Promise.all([
+      User.findById(userId).select('firstName lastName email quickpeId balance'),
+      Transaction.find({ userId }).sort({ timestamp: -1 })
+    ]);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    // Calculate analytics
+    const totalTransactions = transactions.length;
+    const totalSpent = transactions
+      .filter(t => t.type === 'debit')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const totalReceived = transactions
+      .filter(t => t.type === 'credit')
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    const analyticsData = {
+      user: {
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        quickpeId: user.quickpeId,
+        currentBalance: user.balance
+      },
+      summary: {
+        totalTransactions,
+        totalSpent,
+        totalReceived,
+        netFlow: totalReceived - totalSpent
+      },
+      transactions: transactions.slice(0, 100).map(t => ({
+        date: t.timestamp,
+        type: t.type,
+        amount: t.amount,
+        description: t.description,
+        status: t.status
+      }))
+    };
+    
+    // Export based on format
+    if (format === 'json') {
+      res.json({
+        success: true,
+        data: analyticsData
+      });
+    } else if (format === 'csv') {
+      // Generate CSV
+      const csv = [
+        'Date,Type,Amount,Description,Status',
+        ...analyticsData.transactions.map(t => 
+          `${new Date(t.date).toLocaleDateString()},${t.type},${t.amount},"${t.description}",${t.status}`
+        )
+      ].join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=analytics.csv');
+      res.send(csv);
+    } else if (format === 'pdf') {
+      // For PDF, return JSON with message to use comprehensive analytics route
+      res.json({
+        success: true,
+        message: "PDF export available at /api/v1/analytics-comprehensive/export",
+        data: analyticsData
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: "Invalid format. Use json, csv, or pdf"
+      });
+    }
+    
+  } catch (error) {
+    console.error("Error exporting analytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to export analytics",
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

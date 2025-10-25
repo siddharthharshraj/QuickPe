@@ -103,10 +103,10 @@ export const SendMoneyByUPI = () => {
 
     const handleAnimationComplete = () => {
         setShowAnimation(false);
-        // Reload the page to refresh notifications and balance
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
+        // Don't reload - let WebSocket handle updates
+        // setTimeout(() => {
+        //     window.location.reload();
+        // }, 1000);
     };
 
     if (step === 4 && success) {

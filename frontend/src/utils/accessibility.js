@@ -90,12 +90,6 @@ class AccessibilityManager {
         this.announce('Navigated to Transaction History');
       }
 
-      if (altKey && key === 'j') {
-        event.preventDefault();
-        this.navigateTo('/trade-journal');
-        this.announce('Navigated to Trade Journal');
-      }
-
       if (altKey && key === 'a') {
         event.preventDefault();
         this.navigateTo('/analytics');

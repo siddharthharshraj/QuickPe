@@ -8,7 +8,7 @@
     "quickpe": "npm run pre-check && node scripts/start-project.cjs",
     "pre-check": "node scripts/pre-startup-check.cjs",
     "verify:startup": "node scripts/verify-startup.js",
-    "verify:connections": "node scripts/verify-connections.js",
+    "verify:connections": "node scripts/verify-connections.cjs",
     "verify:database": "node scripts/utilities/test-connection.js",
     "verify:routes": "node scripts/utilities/comprehensive-test.js",
     "verify:auth": "node scripts/utilities/test-admin.js",

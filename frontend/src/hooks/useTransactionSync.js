@@ -232,8 +232,8 @@ export const useTransactionSync = (userId, onTransactionUpdate, onSyncStatusChan
     useEffect(() => {
         if (!userId || !syncState.autoSyncEnabled) return;
 
-        // Start background sync interval
-        backgroundSyncRef.current = setInterval(() => {
+        // Background sync disabled - rely on WebSocket
+        /* backgroundSyncRef.current = setInterval(() => {
             if (!isConnected || connectionStatus !== 'connected') {
                 console.log('🔄 Socket disconnected, performing background sync...');
                 performBackgroundSync();
@@ -250,7 +250,7 @@ export const useTransactionSync = (userId, onTransactionUpdate, onSyncStatusChan
                 clearInterval(backgroundSyncRef.current);
             }
             clearTimeout(initialSyncTimeout);
-        };
+        }; */
     }, [userId, syncState.autoSyncEnabled, syncState.backgroundSyncInterval, isConnected, connectionStatus, performBackgroundSync]);
 
     // Connection status monitoring

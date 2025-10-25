@@ -158,9 +158,54 @@ class AuthController {
         } catch (error) {
             console.error('Token refresh error:', error);
             
-            res.status(401).json({
+            res.status(500).json({
                 success: false,
-                message: 'Invalid refresh token'
+                message: 'Internal server error'
+            });
+        }
+    };
+
+    /**
+     * Reset password (simple method for testing)
+     */
+    resetPassword = async (req, res) => {
+        try {
+            const { email, newPassword } = req.body;
+            
+            if (!email || !newPassword) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Email and new password are required'
+                });
+            }
+
+            if (newPassword.length < 6) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password must be at least 6 characters'
+                });
+            }
+
+            const result = await this.authService.resetPassword(email, newPassword);
+            
+            res.json({
+                success: true,
+                message: 'Password reset successfully',
+                data: result
+            });
+        } catch (error) {
+            console.error('Reset password error:', error);
+            
+            if (error.message === 'User not found') {
+                return res.status(404).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error'
             });
         }
     };

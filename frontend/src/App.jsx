@@ -12,12 +12,12 @@ import { Toaster } from 'react-hot-toast';
 import { QueryProvider } from './providers/QueryProvider';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppProvider } from './contexts/GlobalAppContext';
+import { AnalyticsProvider } from './contexts/AnalyticsContext';
 
 // Import components
 import EnhancedErrorBoundary from './components/EnhancedErrorBoundary';
 import SafeLazyWrapper from './components/SafeLazyWrapper';
 import { useSocket } from './sockets/useSocket';
-// import { ConnectionStatus } from './components/ConnectionStatus';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Import lazy components for code splitting
@@ -25,6 +25,7 @@ import {
   LazyLanding,
   LazySignin,
   LazySignup,
+  LazyResetPassword,
   LazyDashboardHome,
   LazySendMoney,
   LazySendMoneyPage,
@@ -38,11 +39,10 @@ import {
   LazyAdminDashboard,
   LazyAdminLogs,
   LazyAdminDatabase,
-  LazyTradeJournal,
-  LazyTradeAnalytics,
   LazyUpgradePage,
   LazySettings,
   LazyLogViewer,
+  LazyMoneyRequests,
   LazyNotFound,
   DashboardSkeleton,
   FormSkeleton,
@@ -72,44 +72,25 @@ const GlobalSocketConnection = () => {
 };
 
 function App() {
-  // Removed duplicate socket connection - using GlobalSocketConnection instead
-  // const currentUserId = localStorage.getItem('userId');
-  // const { isConnected, connectionStatus, reconnectAttempts, lastHeartbeat } = useSocket(currentUserId);
-
-  // Preload critical components on app start (disabled to prevent errors)
-  // useEffect(() => {
-  //   preloadCriticalComponents();
-  // }, []);
+  // Using GlobalSocketConnection for socket management
 
   return (
     <QueryProvider>
       <AuthProvider>
-        <AppProvider>
+        <AnalyticsProvider>
+          <AppProvider>
           <EnhancedErrorBoundary>
           <GlobalSocketConnection />
-          {/* Connection Status Monitor - Disabled to prevent memory issues */}
-          {/*
-          {currentUserId && (
-            <ConnectionStatus
-              connectionStatus={connectionStatus}
-              reconnectAttempts={reconnectAttempts}
-              lastHeartbeat={lastHeartbeat}
-              isConnected={isConnected}
-            />
-          )}
-          */}
            <BrowserRouter>
+        <Suspense fallback={
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+          </div>
+        }>
         <Routes>
-          <Route path="/signup" element={
-            <SafeLazyWrapper fallback={<FormSkeleton />}>
-              <LazySignup />
-            </SafeLazyWrapper>
-          } />
-          <Route path="/signin" element={
-            <SafeLazyWrapper fallback={<FormSkeleton />}>
-              <LazySignin />
-            </SafeLazyWrapper>
-          } />
+          <Route path="/signup" element={<LazySignup />} />
+          <Route path="/signin" element={<LazySignin />} />
+          <Route path="/reset-password" element={<LazyResetPassword />} />
           <Route path="/kpi-reports" element={<LazyKPIReports />} />
           <Route path="/about" element={<LazyAbout />} />
           <Route path="/audit-trail" element={
@@ -139,7 +120,16 @@ function App() {
           } />
           <Route path="/analytics" element={
             <ProtectedRoute>
-              <LazyAnalytics />
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div></div>}>
+                {React.createElement(React.lazy(() => import('./pages/AnalyticsV2')))}
+              </Suspense>
+            </ProtectedRoute>
+          } />
+          <Route path="/request-money" element={
+            <ProtectedRoute>
+              <Suspense fallback={<FormSkeleton />}>
+                {React.createElement(React.lazy(() => import('./pages/RequestMoney')))}
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/ai-assistant" element={
@@ -150,6 +140,11 @@ function App() {
           <Route path="/settings" element={
             <ProtectedRoute>
               <LazySettings />
+            </ProtectedRoute>
+          } />
+          <Route path="/money-requests" element={
+            <ProtectedRoute>
+              <LazyMoneyRequests />
             </ProtectedRoute>
           } />
           <Route path="/logs" element={
@@ -172,16 +167,6 @@ function App() {
               <LazyAdminDatabase />
             </ProtectedRoute>
           } />
-          <Route path="/trade-journal" element={
-            <ProtectedRoute>
-              <LazyTradeJournal />
-            </ProtectedRoute>
-          } />
-          <Route path="/trade-analytics" element={
-            <ProtectedRoute>
-              <LazyTradeAnalytics />
-            </ProtectedRoute>
-          } />
           <Route path="/upgrade" element={
             <ProtectedRoute>
               <LazyUpgradePage />
@@ -191,6 +176,7 @@ function App() {
           <Route path="/" element={<LazyLanding />} />
           <Route path="*" element={<LazyNotFound />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
       
       {/* Toast notifications */}
@@ -219,13 +205,9 @@ function App() {
           },
         }}
       />
-        
-        {/* Performance Monitor - Disabled to prevent memory issues */}
-        {/*
-        <PerformanceMonitor />
-        */}
       </EnhancedErrorBoundary>
       </AppProvider>
+        </AnalyticsProvider>
       </AuthProvider>
     </QueryProvider>
   )
